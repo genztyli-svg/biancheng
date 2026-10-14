@@ -1,0 +1,2171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>画卷馆藏 · 循古卷，识古人风物</title>
+<!-- ============================================================
+     画卷馆藏 · 单文件国风网页项目（需求细化版）
+     纯前端 / 无后端 / 单 index.html 直接部署 Replit、Vercel
+     页面层级：首页 → 入画探索列表页 → 单画全景浏览页 → 小剧场
+     本阶段：仅《清明上河图（仇英版）》实现 热点+小剧场+图鉴
+             其余 9 幅仅 滚轮缩放 + 方向键平移 基础框架
+     ============================================================ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================
+   全局基调：宣纸米白 · 低饱和墨色 · 纤细线条 · 大量留白
+   ========================================================== */
+:root{
+  --paper:#f4efe3; --paper-deep:#ece4d0; --ink:#4a4438; --ink-light:#8a8171;
+  --ink-line:#6b5d4f; --gold:#b08d4a; --seal:#9c4f3f;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;background:var(--paper);overflow:hidden;
+  font-family:"Noto Serif SC","Source Han Serif SC","Songti SC",serif;color:var(--ink);}
+button{font-family:inherit;cursor:pointer;background:none;border:none;color:inherit;}
+::selection{background:rgba(176,141,74,.25);}
+
+/* ================= 一、首页（沿用原版式，不改） ================= */
+#home{position:fixed;inset:0;overflow:hidden;background:#111;z-index:1;}
+#homeBgWrap{position:absolute;top:0;left:0;width:112%;height:100%;will-change:transform;
+  animation:bgDrift 110s ease-in-out infinite alternate;}
+#homeBg{width:100%;height:100%;object-fit:cover;object-position:center;
+  filter:saturate(.82) brightness(.94);}
+@keyframes bgDrift{from{transform:translateX(0);}to{transform:translateX(-9%);}}
+#homeVeil{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(30,26,20,.30) 0%,rgba(30,26,20,0) 30%,rgba(30,26,20,0) 60%,rgba(30,26,20,.45) 100%);}
+#homeNav{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;
+  justify-content:space-between;align-items:center;padding:26px 42px;}
+#homeNav .brand{font-size:13px;letter-spacing:.5em;color:rgba(244,239,227,.9);font-weight:300;}
+#homeNav nav{display:flex;gap:38px;}
+#homeNav nav button{font-size:13px;letter-spacing:.28em;color:rgba(244,239,227,.85);
+  padding:4px 2px;position:relative;transition:color .4s;}
+#homeNav nav button::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:1px;
+  background:rgba(244,239,227,.8);transform:scaleX(0);transform-origin:left;transition:transform .5s;}
+#homeNav nav button:hover{color:#fff;}
+#homeNav nav button:hover::after{transform:scaleX(1);}
+#homeCenter{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding-bottom:6vh;}
+#homeCenter h1{font-size:clamp(44px,7vw,86px);font-weight:600;letter-spacing:.32em;
+  color:#f7f2e6;text-shadow:0 2px 26px rgba(0,0,0,.45);margin-left:.32em;}
+#homeCenter .slogan{margin-top:22px;font-size:15px;font-weight:300;
+  letter-spacing:.62em;color:rgba(247,242,230,.82);margin-left:.62em;}
+#homeCenter .rule{width:64px;height:1px;background:rgba(247,242,230,.5);margin:34px auto;}
+#enterBtn{margin-top:8px;font-size:16px;letter-spacing:.42em;text-indent:.42em;color:#f4efe3;
+  padding:15px 52px;border:1px solid rgba(244,239,227,.75);border-radius:2px;
+  background:rgba(30,26,20,.12);backdrop-filter:blur(3px);
+  transition:background .6s,box-shadow .6s,border-color .6s;}
+#enterBtn:hover{background:rgba(30,26,20,.42);border-color:#fff;
+  box-shadow:0 0 34px rgba(244,239,227,.18) inset,0 6px 30px rgba(0,0,0,.3);}
+#homeFoot{position:absolute;bottom:26px;left:0;right:0;text-align:center;z-index:4;
+  font-size:11px;letter-spacing:.3em;color:rgba(244,239,227,.5);}
+
+/* ================= 二、入画探索页（竖列表 + 擦除上色） ================= */
+#explore{position:fixed;inset:0;z-index:2;display:none;overflow-y:auto;background:
+  repeating-linear-gradient(0deg,rgba(107,93,79,.02) 0 2px,transparent 2px 6px),
+  linear-gradient(160deg,#f7f3e9,#ece4d0);}
+#explore header{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;
+  align-items:center;padding:22px 44px;background:rgba(244,239,227,.88);backdrop-filter:blur(6px);
+  border-bottom:1px solid rgba(107,93,79,.3);}
+#explore header h2{font-size:20px;font-weight:600;letter-spacing:.4em;}
+#explore header p{font-size:11.5px;color:var(--ink-light);letter-spacing:.25em;margin-top:5px;}
+#exploreList{padding:56px 0 90px;display:flex;flex-direction:column;align-items:center;gap:64px;}
+/* 画卡：褪色底图 + 彩色层以圆形遮罩跟随鼠标显示 */
+.p-card{position:relative;width:min(880px,86vw);cursor:pointer;overflow:hidden;
+  border:1px solid rgba(107,93,79,.5);border-radius:2px;background:#ddd2ba;
+  box-shadow:0 10px 34px rgba(74,68,56,.14);transition:box-shadow .5s;}
+.p-card:hover{box-shadow:0 16px 50px rgba(74,68,56,.24);}
+.p-card .ph-img{position:relative;width:100%;aspect-ratio:3/1;overflow:hidden;}
+.p-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+.p-card img.color{filter:saturate(1.02) blur(2px);   /* 彩色层：水墨晕染擦除 */
+  -webkit-mask-image:radial-gradient(circle 95px at var(--mx,-500px) var(--my,-500px),#000 50%,rgba(0,0,0,.55) 72%,rgba(0,0,0,.18) 88%,transparent 99%);
+  mask-image:radial-gradient(circle 95px at var(--mx,-500px) var(--my,-500px),#000 50%,rgba(0,0,0,.55) 72%,rgba(0,0,0,.18) 88%,transparent 99%);}
+.p-card img.gray{filter:grayscale(.92) sepia(.28) brightness(.96);}   /* 褪色底 */
+.p-card .ph-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:10px;color:var(--ink-light);letter-spacing:.3em;font-size:14px;
+  background:linear-gradient(150deg,#e6ddc8,#d8ccb0);}
+.p-card .ph-fallback small{font-size:10.5px;letter-spacing:.2em;}
+.p-card .caption{position:relative;z-index:2;display:flex;align-items:baseline;gap:18px;
+  padding:18px 26px;background:linear-gradient(150deg,#faf6ec,#f0e9d7);border-top:1px solid rgba(107,93,79,.35);}
+.p-card .caption h3{font-size:18px;font-weight:600;letter-spacing:.2em;}
+.p-card .caption .dyn{font-size:11.5px;color:var(--gold);letter-spacing:.2em;}
+.p-card .caption p{margin-left:auto;font-size:12px;color:var(--ink-light);letter-spacing:.12em;
+  max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.p-card .tag{position:absolute;top:14px;left:14px;z-index:3;font-size:10.5px;letter-spacing:.2em;
+  padding:4px 10px;border-radius:2px;color:var(--paper);background:rgba(74,68,56,.8);}
+.p-card .tag.open{background:rgba(156,79,63,.88);}
+
+/* ================= 通用细墨按钮 ================= */
+.ink-btn{font-size:13px;letter-spacing:.2em;color:var(--ink);padding:8px 16px;
+  border:1px solid rgba(107,93,79,.55);border-radius:2px;background:rgba(244,239,227,.88);
+  backdrop-filter:blur(4px);transition:all .35s;}
+.ink-btn:hover{border-color:var(--ink);background:#faf6ec;box-shadow:0 2px 12px rgba(74,68,56,.12);}
+
+/* ================= 三、画卷全景浏览页 ================= */
+#pano{position:fixed;inset:0;z-index:3;display:none;background:#e9e2cf;overflow:hidden;}
+#panoStage{position:absolute;inset:0;overflow:hidden;cursor:grab;}
+#panoStage.dragging{cursor:grabbing;}
+#panoWrap{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;}
+#panoImg{display:block;user-select:none;-webkit-user-drag:none;box-shadow:0 0 60px rgba(74,68,56,.25);}
+/* 修复增色版（默认）；移除 .restore 即回到画卷原样。滤镜强度由 --rf 变量按画作定制 */
+#panoImg.restore,.seg.restore{filter:var(--rf,saturate(1.5) contrast(1.18) brightness(1.06) sepia(.12));}
+#panoNote{position:absolute;left:20px;bottom:172px;z-index:20;font-size:10.5px;
+  letter-spacing:.08em;color:var(--ink-light);background:rgba(244,239,227,.8);
+  padding:5px 14px;border:1px solid rgba(107,93,79,.28);border-radius:2px;display:none;}
+/* 热点标记：亮金脉动圈点（大号高亮，便于在长卷上发现） */
+.hotspot{position:absolute;width:24px;height:24px;transform:translate(-50%,-50%);cursor:pointer;z-index:5;}
+.hotspot::before{content:"";position:absolute;inset:5px;border-radius:50%;
+  background:#ffd34d;box-shadow:0 0 12px rgba(255,211,77,.95),0 0 26px rgba(255,211,77,.6);}
+.hotspot::after{content:"";position:absolute;inset:-2px;border-radius:50%;
+  border:2px solid rgba(255,224,130,.95);animation:hsPulse 1.8s ease-out infinite;}
+@keyframes hsPulse{from{transform:scale(.55);opacity:1;}to{transform:scale(2.0);opacity:0;}}
+.hotspot span{position:absolute;top:-38px;left:50%;transform:translateX(-50%);
+  font-size:12px;letter-spacing:.18em;color:#fff;background:rgba(74,68,56,.88);
+  padding:3px 10px;border-radius:2px;white-space:nowrap;opacity:1;transition:opacity .3s;pointer-events:none;
+  box-shadow:0 2px 8px rgba(0,0,0,.25);}
+.hotspot:hover span{opacity:1;}
+.hotspot.done::before{background:#c9b896;box-shadow:0 0 8px rgba(160,140,100,.5);}
+.hotspot.done::after{animation:none;border-color:rgba(160,140,100,.55);transform:scale(1);}
+.hotspot.done span{opacity:1;background:rgba(107,93,79,.7);}
+#panoBar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;
+  justify-content:space-between;align-items:flex-start;padding:16px 20px;pointer-events:none;}
+#panoBar>*{pointer-events:auto;}
+#panoBar .bar-group{display:flex;gap:10px;}
+#panoTitle{position:absolute;left:20px;bottom:128px;z-index:20;font-size:13px;
+  letter-spacing:.3em;color:var(--ink);background:rgba(244,239,227,.85);
+  border:1px solid rgba(107,93,79,.35);padding:8px 18px;border-radius:2px;}
+#panoHint{position:absolute;left:50%;bottom:128px;transform:translateX(-50%);z-index:20;
+  font-size:12px;letter-spacing:.22em;color:var(--ink-light);
+  background:rgba(244,239,227,.78);padding:7px 18px;border:1px solid rgba(107,93,79,.28);
+  border-radius:2px;pointer-events:none;}
+
+/* 图鉴抽屉（右侧） */
+#codexPanel{position:absolute;top:0;right:0;bottom:0;width:320px;z-index:30;
+  background:linear-gradient(200deg,#f8f4ea,#efe8d6);
+  border-left:1px solid rgba(107,93,79,.45);transform:translateX(102%);
+  transition:transform .55s cubic-bezier(.22,.8,.3,1);
+  box-shadow:-12px 0 40px rgba(74,68,56,.12);display:flex;flex-direction:column;}
+#codexPanel.open{transform:translateX(0);}
+#codexPanel header{padding:26px 26px 16px;border-bottom:1px solid rgba(107,93,79,.3);}
+#codexPanel header h2{font-size:18px;font-weight:600;letter-spacing:.34em;}
+#codexPanel header p{margin-top:7px;font-size:11px;color:var(--ink-light);letter-spacing:.18em;}
+#codexList{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px;}
+.codex-card{border:1px solid rgba(107,93,79,.4);border-radius:2px;padding:16px 18px;
+  background:linear-gradient(150deg,#faf6ec,#f1ead9);}
+.codex-card.locked{opacity:.55;filter:grayscale(.6);}
+.codex-card h4{font-size:15.5px;font-weight:600;letter-spacing:.2em;}
+.codex-card h4 small{font-size:10px;color:var(--gold);letter-spacing:.2em;margin-left:10px;}
+.codex-card .role{font-size:11px;color:var(--seal);letter-spacing:.15em;margin-top:5px;}
+.codex-card p{margin-top:9px;font-size:12px;line-height:1.95;color:#5a5344;text-align:justify;}
+.codex-card .lock-tip{font-size:11px;color:var(--ink-light);letter-spacing:.12em;margin-top:8px;}
+.codex-card .place{margin-top:10px;font-size:12px;line-height:1.95;color:#6a6250;text-align:justify;
+  border-left:2px solid rgba(176,141,74,.55);padding-left:10px;}
+.codex-card .place em{font-style:normal;color:var(--gold);letter-spacing:.15em;font-weight:600;}
+
+/* ================= 四、小剧场（PPT 文字剧场） ================= */
+#theater{position:fixed;inset:0;z-index:60;display:none;flex-direction:column;
+  background:#1c1a16;}
+#theaterBg{position:absolute;inset:0;background-size:cover;background-position:center;
+  filter:brightness(.5) saturate(.85);transition:background-image .6s;}
+#theaterBg.rain::after{content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(12deg,transparent 0 22px,rgba(200,214,224,.14) 22px 23px);
+  animation:rainMove .5s linear infinite;}
+@keyframes rainMove{to{transform:translateY(46px);}}
+#theaterDim{position:absolute;inset:0;background:linear-gradient(to top,rgba(15,13,10,.92) 0%,rgba(15,13,10,.25) 45%,rgba(15,13,10,.35) 100%);}
+#theaterStage{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;
+  justify-content:flex-end;padding:0 max(5vw,24px) 7vh;}
+#theaterTitle{font-size:12px;letter-spacing:.4em;color:rgba(244,239,227,.6);margin-bottom:18px;}
+#dlgBox{max-width:760px;background:
+  repeating-linear-gradient(0deg,rgba(107,93,79,.05) 0 2px,transparent 2px 5px),
+  linear-gradient(155deg,#f8f4ea,#ede5d0);
+  border:1px solid var(--ink-line);border-radius:2px;padding:28px 34px 24px;
+  box-shadow:0 20px 70px rgba(0,0,0,.5);}
+#dlgSpeaker{font-size:13px;font-weight:600;letter-spacing:.3em;color:var(--seal);}
+#dlgText{margin-top:12px;font-size:15.5px;line-height:2.1;letter-spacing:.05em;color:#4a4438;
+  min-height:66px;text-align:justify;}
+#dlgNext{margin-top:20px;font-size:12.5px;letter-spacing:.3em;color:var(--ink-light);
+  display:flex;align-items:center;gap:8px;transition:color .3s;}
+#dlgNext:hover{color:var(--seal);}
+#dlgNext::after{content:"▼";font-size:9px;animation:bob 1.4s ease-in-out infinite;}
+@keyframes bob{50%{transform:translateY(3px);}}
+#choiceBox{margin-top:22px;display:flex;flex-direction:column;gap:12px;}
+.choice-btn{text-align:left;font-size:14.5px;letter-spacing:.12em;color:var(--ink);
+  padding:13px 20px;border:1px solid rgba(107,93,79,.55);border-radius:2px;
+  background:rgba(255,252,244,.55);transition:all .35s;}
+.choice-btn:hover{border-color:var(--seal);color:var(--seal);background:#fbf7ee;
+  transform:translateX(6px);}
+#theaterExit{position:absolute;top:20px;right:26px;z-index:5;font-size:13px;
+  letter-spacing:.25em;color:rgba(244,239,227,.75);padding:8px 14px;
+  border:1px solid rgba(244,239,227,.4);border-radius:2px;transition:all .4s;}
+#theaterExit:hover{color:#fff;border-color:#fff;background:rgba(255,255,255,.08);}
+
+/* ================= 弹窗 / 提示（沿用宣纸样式） ================= */
+.mask{position:fixed;inset:0;z-index:70;background:rgba(40,35,26,.30);backdrop-filter:blur(2px);
+  display:none;align-items:center;justify-content:center;}
+.mask.show{display:flex;}
+.paper-pop{width:min(460px,90vw);max-height:82vh;overflow-y:auto;position:relative;
+  background:repeating-linear-gradient(0deg,rgba(107,93,79,.022) 0 2px,transparent 2px 5px),
+  linear-gradient(155deg,#faf6ec 0%,#f3ecda 60%,#ece2ca 100%);
+  border:1px solid var(--ink-line);border-radius:2px;padding:38px 40px 32px;
+  box-shadow:0 18px 60px rgba(50,42,30,.28);}
+.paper-pop::before{content:"";position:absolute;top:8px;left:8px;right:8px;bottom:8px;
+  border:1px solid rgba(107,93,79,.28);pointer-events:none;}
+.paper-pop h3{font-size:21px;font-weight:600;letter-spacing:.24em;}
+.paper-pop .sub{margin-top:6px;font-size:12px;letter-spacing:.3em;color:var(--gold);}
+.paper-pop .body{margin-top:20px;font-size:14px;line-height:2.15;letter-spacing:.06em;
+  color:#5a5344;text-align:justify;}
+.pop-actions{margin-top:28px;display:flex;justify-content:space-between;align-items:center;}
+.text-btn{font-size:12.5px;letter-spacing:.2em;color:var(--ink-light);padding:6px 4px;
+  border-bottom:1px solid transparent;transition:all .35s;}
+.text-btn:hover{color:var(--seal);border-bottom-color:var(--seal);}
+.seal-btn{font-size:13px;letter-spacing:.24em;color:var(--paper);background:var(--ink);
+  padding:9px 24px;border-radius:2px;transition:all .35s;}
+.seal-btn:hover{background:var(--seal);}
+.close-x{position:absolute;top:14px;right:16px;font-size:15px;color:var(--ink-light);
+  width:30px;height:30px;line-height:30px;text-align:center;border-radius:2px;transition:all .3s;z-index:2;}
+.close-x:hover{color:var(--seal);background:rgba(156,79,63,.08);}
+.paper-pop textarea{width:100%;min-height:110px;resize:vertical;margin-top:20px;
+  font-family:inherit;font-size:13.5px;line-height:1.9;color:var(--ink);
+  background:rgba(255,252,244,.6);border:1px solid rgba(107,93,79,.45);border-radius:2px;
+  padding:12px 14px;outline:none;}
+.paper-pop textarea:focus{border-color:var(--ink);}
+.feed-list{margin-top:14px;font-size:11.5px;color:var(--ink-light);letter-spacing:.08em;}
+/* 仕女妆扮小游戏（试运营） */
+#dressup{position:fixed;inset:0;z-index:65;display:none;flex-direction:column;
+  background:repeating-linear-gradient(0deg,rgba(107,93,79,.02) 0 2px,transparent 2px 6px),
+  linear-gradient(160deg,#f7f3e9,#ece4d0);}
+#dressup.open{display:flex;}
+#dressup header{display:flex;justify-content:space-between;align-items:center;
+  padding:18px 34px;border-bottom:1px solid rgba(107,93,79,.35);}
+#dressup header h2{font-size:19px;letter-spacing:.34em;font-weight:600;display:inline;}
+#dressup header small{font-size:11px;color:var(--ink-light);letter-spacing:.2em;margin-left:16px;}
+#duMain{flex:1;display:flex;min-height:0;}
+.du-fig{flex:1.1;display:flex;align-items:center;justify-content:center;padding:22px;min-width:0;}
+.du-fig svg{height:min(84vh,620px);max-width:100%;filter:drop-shadow(0 16px 28px rgba(74,68,56,.22));}
+.du-panel{width:350px;border-left:1px solid rgba(107,93,79,.35);padding:26px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:18px;}
+.du-group h5{font-size:12.5px;letter-spacing:.3em;color:var(--gold);margin-bottom:10px;font-weight:600;}
+.du-opts{display:flex;flex-wrap:wrap;gap:8px;}
+.du-opt{font-size:12.5px;letter-spacing:.12em;padding:7px 13px;border:1px solid rgba(107,93,79,.5);
+  border-radius:2px;background:rgba(255,252,244,.55);transition:all .3s;}
+.du-opt:hover{border-color:var(--seal);color:var(--seal);}
+.du-opt.on{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.du-note{font-size:12.5px;line-height:2;color:#5a5344;border-left:2px solid rgba(176,141,74,.55);
+  padding-left:10px;min-height:52px;}
+#duFinish{margin-top:2px;align-self:flex-start;}
+@media (max-width:820px){
+  #duMain{flex-direction:column;}
+  .du-fig svg{height:46vh;}
+  .du-panel{width:100%;border-left:none;border-top:1px solid rgba(107,93,79,.35);}
+}
+#toast{position:fixed;top:70px;left:50%;transform:translate(-50%,-14px);z-index:99;
+  font-size:13px;letter-spacing:.24em;color:var(--paper);background:rgba(74,68,56,.92);
+  padding:11px 28px;border-radius:2px;opacity:0;pointer-events:none;
+  transition:opacity .45s,transform .45s;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+#toast.show{opacity:1;transform:translate(-50%,0);}
+
+
+/* ---------- 全图预览导航条（长卷 minimap） ---------- */
+#minimap{position:absolute;left:0;right:0;bottom:0;height:112px;z-index:22;
+  background:rgba(30,26,20,.88);border-top:1px solid rgba(176,141,74,.45);
+  display:none;cursor:crosshair;overflow:hidden;
+  box-shadow:0 -6px 24px rgba(30,26,20,.35);}
+#minimapImg{position:absolute;opacity:.95;pointer-events:none;
+  filter:saturate(.9) brightness(.85);}
+#mmView{position:absolute;border:1.5px solid #ffd34d;border-radius:1px;
+  background:rgba(255,211,77,.10);box-shadow:0 0 12px rgba(255,211,77,.55),0 0 3px rgba(255,211,77,.9) inset;
+  pointer-events:none;z-index:2;}
+#minimapTip{position:absolute;right:12px;top:6px;z-index:3;font-size:10px;
+  letter-spacing:.2em;color:rgba(244,239,227,.6);pointer-events:none;}
+
+/* ---------- 逛夜市小游戏（地图→预览→店内三段式） ---------- */
+#nightMarket{position:fixed;inset:0;z-index:65;display:none;flex-direction:column;background:#161412;color:#e8dcc8;}
+#nightMarket.open{display:flex;}
+
+/* 阶段一：银两兑换 */
+#nmExchange{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:40px;}
+#nmExchange h2{font-size:28px;font-weight:600;letter-spacing:.4em;color:#f4efe3;text-shadow:0 2px 14px rgba(0,0,0,.45);}
+#nmExchange>p{font-size:14px;letter-spacing:.22em;color:#a09580;}
+.nm-input{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;}
+.nm-input label{font-size:13.5px;letter-spacing:.1em;color:#c9b896;}
+.nm-input input{width:160px;padding:9px 14px;font-family:inherit;font-size:14px;background:rgba(255,255,255,.06);border:1px solid #6b5d4f;border-radius:2px;color:#e8dcc8;outline:none;}
+.nm-input input:focus{border-color:#b08d4a;}
+#nmExchangeResult{max-width:520px;text-align:center;line-height:2;font-size:14px;color:#d4c8b0;min-height:80px;}
+
+/* 阶段二：夜市地图 */
+#nmMapView{flex:1;display:none;flex-direction:column;position:relative;}
+.nm-map-header{display:flex;justify-content:space-between;align-items:center;padding:14px 28px;border-bottom:1px solid #3a3530;background:rgba(0,0,0,.35);}
+.nm-map-header h2{font-size:18px;letter-spacing:.3em;font-weight:600;}
+#nmWallet{font-size:13.5px;letter-spacing:.12em;color:#ffd34d;background:rgba(255,211,77,.08);padding:6px 14px;border-radius:2px;border:1px solid rgba(255,211,77,.25);}
+.nm-map-wrap{flex:1;position:relative;overflow:hidden;background:#1a1712;}
+.nm-map-bg{width:100%;height:100%;object-fit:cover;object-position:center;opacity:.92;}
+.nm-map-point{position:absolute;cursor:pointer;z-index:2;transform:translate(-50%,-50%);}
+.nm-map-dot{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffd34d,#c9782c);box-shadow:0 0 18px rgba(255,211,77,.7),0 0 6px rgba(255,211,77,.3);animation:nmPulse 2s ease-out infinite;border:2px solid rgba(255,255,255,.25);}
+@keyframes nmPulse{from{transform:scale(.6);opacity:1;}to{transform:scale(2.4);opacity:0;}}
+.nm-map-label{position:absolute;top:-34px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;letter-spacing:.14em;color:#fff;background:rgba(60,50,38,.9);padding:4px 12px;border-radius:2px;border:1px solid #6b5d4f;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.35);}
+.nm-map-hint{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);font-size:12.5px;letter-spacing:.18em;color:#a09580;background:rgba(20,18,14,.85);padding:8px 22px;border-radius:2px;border:1px solid #3a3530;}
+
+/* 阶段三：店铺预览弹窗 */
+#nmPreview{position:fixed;inset:0;z-index:67;display:none;align-items:center;justify-content:center;background:rgba(10,9,7,.88);}
+#nmPreview.open{display:flex;}
+.nm-preview-card{width:520px;max-width:90vw;background:linear-gradient(180deg,#2e2820,#1f1c17);border:1px solid #5a5044;border-radius:3px;padding:28px;display:flex;gap:22px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.nm-preview-img{width:160px;height:200px;background-size:cover;background-position:center;border-radius:2px;border:1px solid #3a3530;flex-shrink:0;}
+.nm-preview-info{flex:1;display:flex;flex-direction:column;}
+.nm-preview-info h3{font-size:17px;letter-spacing:.2em;margin-bottom:10px;color:#e6c88a;}
+.nm-preview-info p{flex:1;font-size:13px;line-height:1.9;color:#b0a590;}
+.nm-preview-actions{display:flex;gap:12px;margin-top:14px;}
+.nm-preview-actions button{padding:9px 22px;font-size:13px;letter-spacing:.1em;font-family:inherit;cursor:pointer;border-radius:2px;transition:all .25s;}
+.nm-preview-actions .seal-btn{background:#8a3a3a;border:1px solid #a05050;color:#f4efe3;}
+.nm-preview-actions .seal-btn:hover{background:#9e4343;}
+.nm-preview-actions .ink-btn{background:transparent;border:1px solid #5a5044;color:#a09580;}
+.nm-preview-actions .ink-btn:hover{border-color:#8a7d6e;color:#c9b896;}
+
+/* 阶段四：店铺内部 */
+#nmShop{flex:1;display:none;flex-direction:column;}
+.nm-shop-header{display:flex;justify-content:space-between;align-items:center;padding:14px 28px;border-bottom:1px solid #3a3530;background:rgba(0,0,0,.35);}
+#nmShopName{font-size:18px;letter-spacing:.3em;font-weight:600;}
+#nmWallet2{font-size:13.5px;letter-spacing:.12em;color:#ffd34d;background:rgba(255,211,77,.08);padding:6px 14px;border-radius:2px;border:1px solid rgba(255,211,77,.25);}
+.nm-shop-body{flex:1;display:flex;overflow:hidden;}
+.nm-shop-left{width:320px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;border-right:1px solid #2a2520;background:rgba(0,0,0,.15);}
+.nm-shop-left img{width:260px;height:340px;object-fit:cover;border-radius:3px;border:1px solid #3a3530;box-shadow:0 8px 30px rgba(0,0,0,.4);}
+#nmNpcName{margin-top:14px;font-size:14px;letter-spacing:.16em;color:#c9b896;}
+.nm-shop-right{flex:1;display:flex;flex-direction:column;padding:30px 36px;gap:18px;overflow:auto;}
+#nmDialogue{flex:1;background:rgba(255,255,255,.04);border:1px solid #3a3530;border-radius:3px;padding:22px 26px;font-size:14px;line-height:2;color:#d4c8b0;min-height:120px;}
+#nmDialogueText{min-height:60px;}
+#nmChoices{display:flex;flex-direction:column;gap:10px;}
+#nmChoices button{text-align:left;padding:12px 18px;font-size:13.5px;letter-spacing:.06em;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid #4a4238;border-radius:2px;color:#c9b896;cursor:pointer;transition:all .25s;}
+#nmChoices button:hover{border-color:#ffd34d;color:#ffd34d;background:rgba(255,211,77,.08);}
+#nmBuyResult{font-size:13px;color:#a09580;line-height:1.8;min-height:40px;}
+
+/* 消费提示 */
+#nmToast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:68;background:rgba(30,26,20,.96);border:1px solid #5a5044;padding:14px 32px;border-radius:2px;font-size:13.5px;letter-spacing:.08em;color:#e8dcc8;max-width:560px;text-align:center;line-height:1.8;opacity:0;transition:opacity .5s;pointer-events:none;box-shadow:0 8px 30px rgba(0,0,0,.4);}
+#nmToast.show{opacity:1;}
+
+@media (max-width:720px){
+  #homeNav{padding:18px 20px;} #homeNav nav{gap:18px;}
+  #explore header{padding:16px 20px;}
+  .p-card .caption p{display:none;}
+  #codexPanel{width:86vw;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 一、首页（完全保留原版式） ============ -->
+<section id="home">
+  <div id="homeBgWrap"><img id="homeBg" alt="清明上河图"
+       src="https://commons.wikimedia.org/wiki/Special:FilePath/Alongtheriver_QingMing.jpg?width=3200"></div>
+  <div id="homeVeil"></div>
+  <header id="homeNav">
+    <div class="brand">画卷馆藏</div>
+    <nav>
+      <button id="navGallery">馆藏列表</button>
+      <button id="navAbout">关于馆藏</button>
+      <button id="navFeedback">意见反馈</button>
+    </nav>
+  </header>
+  <div id="homeCenter">
+    <h1>画卷馆藏</h1>
+    <p class="slogan">循古卷，识古人风物</p>
+    <div class="rule"></div>
+    <button id="enterBtn">入画探索</button>
+  </div>
+  <footer id="homeFoot">北宋 · 张择端《清明上河图》 · 绢本设色 · 现藏北京故宫博物院</footer>
+</section>
+
+<!-- ============ 二、入画探索页（竖列表 + 鼠标擦除上色） ============ -->
+<section id="explore">
+  <header>
+    <div>
+      <h2>入画探索</h2>
+      <p>十幅传世长卷 · 笔尖拂过，唤醒纸上颜色</p>
+    </div>
+    <button class="ink-btn" id="exploreBack">返回首页</button>
+  </header>
+  <div id="exploreList"><!-- 由 JS 按 PAINTINGS 数据生成 --></div>
+</section>
+
+<!-- ============ 三、画卷全景浏览页 ============ -->
+<section id="pano">
+  <div id="panoStage">
+    <div id="panoWrap">
+      <img id="panoImg" alt="" draggable="false">
+      <!-- 热点标记由 JS 注入（仅清明上河图） -->
+    </div>
+  </div>
+  <div id="panoBar">
+    <div class="bar-group">
+      <button class="ink-btn" id="panoBack">← 返回列表</button>
+      <button class="ink-btn" id="codexBtn" style="display:none;">图鉴</button>
+      <button class="ink-btn" id="dressBtn" style="display:none;">仕女妆扮</button>
+      <button class="ink-btn" id="nightBtn" style="display:none;">逛夜市</button>
+    </div>
+    <div class="bar-group">
+      <button class="ink-btn" id="srcToggle" style="display:none;">画卷原样</button>
+      <button class="ink-btn" id="panoFit">复位</button>
+    </div>
+  </div>
+  <div id="panoTitle"></div>
+  <div id="minimap"><img id="minimapImg" alt=""><div id="mmView"></div><div id="minimapTip">全图预览 · 点击定位</div></div>
+  <div id="panoNote">*为帮助浏览者更清晰了解画卷，本页为修复版本，右上角可见原样。</div>
+  <div id="panoHint">滚轮缩放 · 方向键漫游 · 点击金圈进入场景</div>
+  <!-- 图鉴抽屉 -->
+  <aside id="codexPanel">
+    <header>
+      <h2>长卷图鉴</h2>
+      <p>完成场景小剧场 · 解锁人物风物</p>
+      <button class="text-btn" id="codexClose" style="margin-top:12px;">收起图鉴</button>
+    </header>
+    <div id="codexList"></div>
+  </aside>
+</section>
+
+<!-- ============ 四、场景小剧场 ============ -->
+<section id="theater">
+  <div id="theaterBg"></div>
+  <div id="theaterDim"></div>
+  <button id="theaterExit">暂离剧场 ✕</button>
+  <div id="theaterStage">
+    <div id="theaterTitle"></div>
+    <div id="dlgBox">
+      <div id="dlgSpeaker"></div>
+      <div id="dlgText"></div>
+      <div id="choiceBox"></div>
+      <button id="dlgNext">继续</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ 五、仕女妆扮小游戏 ============ -->
+<section id="dressup">
+  <header>
+    <div>
+      <h2>仕女妆扮</h2>
+      <small>试运营 · 簪花种类与簪戴方式体验</small>
+    </div>
+    <button class="ink-btn" id="duClose">返回长卷</button>
+  </header>
+  <main id="duMain">
+    <div class="du-panel">
+      <div class="du-group"><h5>簪花种类</h5><div class="du-opts" id="duFlowers"></div></div>
+      <div class="du-group"><h5>簪戴位置</h5><div class="du-opts" id="duPlaces"></div></div>
+      <div class="du-group"><h5>帔子颜色</h5><div class="du-opts" id="duPizi"></div></div>
+      <div class="du-group"><h5>裙上纹样</h5><div class="du-opts" id="duPats"></div></div>
+      <div class="du-note" id="duNote">先为她簪一朵花吧——唐人以花入鬓，花时不同，簪的花也不同。</div>
+      <button class="seal-btn" id="duFinish">完成妆扮</button>
+    </div>
+    <div class="du-fig">
+      <!-- 固定基底仕女 + 14 个可开关服饰图层（id 以 ly- 开头，JS 控制显隐） -->
+      <svg id="ladySvg" viewBox="0 0 360 640" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="skinGrad" cx=".5" cy=".42" r=".75">
+            <stop offset="0" stop-color="#f9ecd8"/><stop offset="1" stop-color="#eed9ba"/>
+          </radialGradient>
+          <linearGradient id="silkGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#f2ead9"/><stop offset="1" stop-color="#e2d3b8"/>
+          </linearGradient>
+          <linearGradient id="hairGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2c2620"/><stop offset="1" stop-color="#171310"/>
+          </linearGradient>
+          <linearGradient id="piGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#c05a4a"/><stop offset="1" stop-color="#a8433a"/>
+          </linearGradient>
+          <pattern id="pat-tuan" width="42" height="42" patternUnits="userSpaceOnUse">
+            <rect width="42" height="42" fill="#a85a63"/>
+            <g fill="#ecd6a4"><circle cx="21" cy="21" r="3.6"/><circle cx="21" cy="13" r="3.2"/><circle cx="27.6" cy="17.6" r="3.2"/><circle cx="25.2" cy="25.2" r="3.2"/><circle cx="16.8" cy="25.2" r="3.2"/><circle cx="14.4" cy="17.6" r="3.2"/></g>
+          </pattern>
+          <pattern id="pat-yunhe" width="46" height="46" patternUnits="userSpaceOnUse">
+            <rect width="46" height="46" fill="#75828f"/>
+            <path d="M5,32 q7,-11 15,-4 q5,-9 13,-3 q10,-4 11,6" stroke="#ece5d2" fill="none" stroke-width="2" opacity=".9"/>
+            <circle cx="37" cy="13" r="2.2" fill="#ece5d2"/>
+          </pattern>
+          <pattern id="pat-chan" width="44" height="44" patternUnits="userSpaceOnUse">
+            <rect width="44" height="44" fill="#9c7c58"/>
+            <path d="M0,22 q11,-14 22,0 q11,14 22,0" stroke="#e6d3a8" fill="none" stroke-width="2"/>
+            <circle cx="22" cy="22" r="2.6" fill="#e6d3a8"/>
+          </pattern>
+          <pattern id="pat-zhe" width="48" height="48" patternUnits="userSpaceOnUse">
+            <rect width="48" height="48" fill="#7a8762"/>
+            <path d="M4,45 q10,-19 27,-25" stroke="#e6e0c8" fill="none" stroke-width="2"/>
+            <g fill="#ead0cf"><circle cx="22" cy="31" r="2.6"/><circle cx="30" cy="25" r="2.6"/><circle cx="17" cy="37" r="2.2"/></g>
+          </pattern>
+        </defs>
+        <!-- 氛围：左上角辛夷一枝 -->
+        <g stroke="#8a7358" stroke-width="2.6" fill="none" opacity=".9">
+          <path d="M-8,66 C38,52 72,66 98,108"/>
+          <path d="M58,64 C68,88 84,106 102,118"/>
+        </g>
+        <g fill="#d98c94">
+          <circle cx="66" cy="58" r="5"/><circle cx="90" cy="84" r="4.4"/><circle cx="46" cy="50" r="4"/>
+          <circle cx="100" cy="112" r="3.6"/><circle cx="80" cy="100" r="3"/>
+        </g>
+        <g fill="#c9a24d"><circle cx="66" cy="58" r="1.4"/><circle cx="90" cy="84" r="1.2"/><circle cx="46" cy="50" r="1.1"/></g>
+        <!-- 地面淡影 -->
+        <ellipse cx="180" cy="608" rx="102" ry="12" fill="rgba(74,68,56,.14)"/>
+        <!-- 垂发（脑后） -->
+        <path d="M150,98 C122,112 114,152 120,198 C124,228 138,242 152,244 C147,214 147,182 154,158 C161,182 161,214 156,244 C170,242 184,228 188,198 C194,152 186,112 158,98 Z" fill="url(#hairGrad)"/>
+        <!-- 长裙（齐胸） -->
+        <path id="duSkirt" d="M142,252 C126,322 116,442 120,598 C150,611 210,611 240,598 C244,442 234,322 218,252 C196,263 164,263 142,252 Z" fill="url(#pat-tuan)" stroke="#3a332c" stroke-width="1.2"/>
+        <!-- 裙腰 -->
+        <path d="M140,246 C162,256 198,256 220,246 L218,257 C197,266 163,266 142,257 Z" fill="#9c4f3f" stroke="#3a332c" stroke-width="1"/>
+        <!-- 帔子后层 -->
+        <path d="M156,200 C140,262 130,382 136,558 C137,580 148,582 150,562 C146,420 154,300 166,222 Z" fill="url(#piGrad)" opacity=".5"/>
+        <path d="M204,200 C220,262 230,382 224,558 C223,580 212,582 210,562 C214,420 206,300 194,222 Z" fill="url(#piGrad)" opacity=".5"/>
+        <!-- 上襦与广袖 -->
+        <path d="M146,248 C138,214 148,190 180,186 C212,190 222,214 214,248 C198,259 162,259 146,248 Z" fill="url(#silkGrad)" stroke="#3a332c" stroke-width="1.2"/>
+        <path d="M152,194 C114,202 94,248 102,314 C108,350 130,360 144,348 C130,318 130,270 154,242 Z" fill="url(#silkGrad)" stroke="#3a332c" stroke-width="1.2"/>
+        <path d="M208,194 C246,202 266,248 258,314 C252,350 230,360 216,348 C230,318 230,270 206,242 Z" fill="url(#silkGrad)" stroke="#3a332c" stroke-width="1.2"/>
+        <!-- 帔子前层（胸前垂落） -->
+        <path id="piL" d="M162,202 C156,242 152,304 153,384 C154,472 158,540 162,590 L173,588 C168,528 164,458 163,382 C162,302 167,246 172,208 Z" fill="url(#piGrad)" opacity=".88"/>
+        <path id="piR" d="M198,202 C204,242 208,304 207,384 C206,472 202,540 198,590 L187,588 C192,528 196,458 197,382 C198,302 193,246 188,208 Z" fill="url(#piGrad)" opacity=".88"/>
+        <!-- 颈与面 -->
+        <rect x="174" y="166" width="12" height="26" fill="url(#skinGrad)"/>
+        <ellipse cx="180" cy="140" rx="28" ry="33" fill="url(#skinGrad)"/>
+        <!-- 前发与鬓角 -->
+        <path d="M152,134 C148,102 160,84 180,82 C200,84 212,102 208,134 C204,116 196,106 180,106 C164,106 156,116 152,134 Z" fill="url(#hairGrad)"/>
+        <path d="M156,108 C146,116 142,128 144,140 C150,130 156,124 162,120 Z" fill="url(#hairGrad)"/>
+        <path d="M204,108 C214,116 218,128 216,140 C210,130 204,124 198,120 Z" fill="url(#hairGrad)"/>
+        <!-- 高髻、发束、金钗步摇 -->
+        <circle cx="180" cy="66" r="20" fill="url(#hairGrad)"/>
+        <circle cx="180" cy="44" r="11" fill="url(#hairGrad)"/>
+        <ellipse cx="180" cy="64" rx="20" ry="5.5" fill="none" stroke="#c9a24d" stroke-width="2.4"/>
+        <g stroke="#c9a24d" stroke-width="1.6" fill="#c9a24d">
+          <path d="M159,72 l0,15" fill="none"/><circle cx="159" cy="90" r="2.3"/><circle cx="159" cy="97" r="1.7"/>
+          <path d="M201,72 l0,15" fill="none"/><circle cx="201" cy="90" r="2.3"/><circle cx="201" cy="97" r="1.7"/>
+        </g>
+        <g fill="#c9a24d"><circle cx="159" cy="70" r="2.6"/><circle cx="201" cy="70" r="2.6"/><circle cx="180" cy="30" r="2.2"/></g>
+        <!-- 花钿、眉、目、唇、靥 -->
+        <path d="M180,118 l4,4.5 -4,4.5 -4,-4.5 Z" fill="#c9a24d"/>
+        <path d="M166,136 q6,-4 11,-1" stroke="#4a3f34" stroke-width="1.3" fill="none"/>
+        <path d="M183,135 q6,-3 11,1" stroke="#4a3f34" stroke-width="1.3" fill="none"/>
+        <path d="M165,146 q5.5,-3.5 11,0" stroke="#3a332c" stroke-width="1.5" fill="none"/>
+        <path d="M184,146 q5.5,-3.5 11,0" stroke="#3a332c" stroke-width="1.5" fill="none"/>
+        <ellipse cx="163" cy="152" rx="7" ry="3.6" fill="#e8a9a0" opacity=".35"/>
+        <ellipse cx="197" cy="152" rx="7" ry="3.6" fill="#e8a9a0" opacity=".35"/>
+        <path d="M176,158 q4,-3.2 8,0 q-1.6,4.2 -4,4.6 q-2.4,-.4 -4,-4.6 Z" fill="#b04a3e"/>
+        <circle cx="171" cy="160" r="1" fill="#b04a3e" opacity=".55"/>
+        <circle cx="189" cy="160" r="1" fill="#b04a3e" opacity=".55"/>
+        <!-- 簪花（JS 按花种与簪位注入） -->
+        <g id="duFlower"></g>
+      </svg>
+    </div>
+  </main>
+</section>
+
+<!-- ============ 六、清明上河图 · 逛夜市小游戏（地图→预览→店内三段式） ============ -->
+<section id="nightMarket">
+  <!-- 阶段一：银两兑换 -->
+  <div id="nmExchange">
+    <h2>入汴京夜市</h2>
+    <p>先换些北宋银两在身上，再入市闲逛</p>
+    <div class="nm-input">
+      <label>您想揣多少银钱（以今日人民币计）：</label>
+      <input type="number" id="nmSalary" value="5000" min="0" step="100">
+      <button class="seal-btn" id="nmExchangeBtn">兑换</button>
+    </div>
+    <div id="nmExchangeResult"></div>
+    <button class="seal-btn" id="nmEnterBtn" style="display:none;margin-top:8px;">入市闲逛</button>
+    <button class="ink-btn nm-back" style="margin-top:18px;">返回长卷</button>
+  </div>
+
+  <!-- 阶段二：夜市地图（全屏背景+坐标点） -->
+  <div id="nmMapView" style="display:none;">
+    <header class="nm-map-header">
+      <h2>州桥夜市</h2>
+      <div id="nmWallet">余额：<span id="nmMoney">0</span> 文</div>
+      <button class="ink-btn nm-back">返回长卷</button>
+    </header>
+    <div class="nm-map-wrap">
+      <img src="nm_map.jpg" class="nm-map-bg" alt="州桥夜市">
+      <div class="nm-map-point" data-shop="bing" style="left:18%;top:62%;">
+        <div class="nm-map-dot"></div>
+        <div class="nm-map-label">曹婆婆肉饼</div>
+      </div>
+      <div class="nm-map-point" data-shop="cha" style="left:38%;top:55%;">
+        <div class="nm-map-dot"></div>
+        <div class="nm-map-label">王婆茶肆</div>
+      </div>
+      <div class="nm-map-point" data-shop="guo" style="left:56%;top:58%;">
+        <div class="nm-map-dot"></div>
+        <div class="nm-map-label">李记果子铺</div>
+      </div>
+      <div class="nm-map-point" data-shop="jiu" style="left:72%;top:48%;">
+        <div class="nm-map-dot"></div>
+        <div class="nm-map-label">孙家正店</div>
+      </div>
+      <div class="nm-map-point" data-shop="chou" style="left:82%;top:65%;">
+        <div class="nm-map-dot"></div>
+        <div class="nm-map-label">赵记绸缎庄</div>
+      </div>
+      <div class="nm-map-point" data-shop="wan" style="left:62%;top:72%;">
+        <div class="nm-map-dot"></div>
+        <div class="nm-map-label">周家玩具摊</div>
+      </div>
+    </div>
+    <div class="nm-map-hint">点击灯笼标记，步入店铺</div>
+  </div>
+
+  <!-- 阶段三：店铺预览弹窗 -->
+  <div id="nmPreview" style="display:none;">
+    <div class="nm-preview-card">
+      <div class="nm-preview-img" id="nmPreviewImg"></div>
+      <div class="nm-preview-info">
+        <h3 id="nmPreviewName"></h3>
+        <p id="nmPreviewDesc"></p>
+        <div class="nm-preview-actions">
+          <button class="seal-btn" id="nmPreviewEnter">确定进入</button>
+          <button class="ink-btn" id="nmPreviewBack">再看看</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 阶段四：店铺内部（店主+对话+选购） -->
+  <div id="nmShop" style="display:none;">
+    <header class="nm-shop-header">
+      <div id="nmShopName"></div>
+      <div id="nmWallet2">余额：<span id="nmMoney2">0</span> 文</div>
+      <button class="ink-btn" id="nmShopBack">退出店铺</button>
+    </header>
+    <div class="nm-shop-body">
+      <div class="nm-shop-left">
+        <img id="nmNpcImg" src="" alt="">
+        <div id="nmNpcName"></div>
+      </div>
+      <div class="nm-shop-right">
+        <div id="nmDialogue">
+          <div id="nmDialogueText"></div>
+        </div>
+        <div id="nmChoices"></div>
+        <div id="nmBuyResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 消费提示 -->
+  <div id="nmToast"></div>
+</section>
+
+<!-- 关于 / 反馈 -->
+<div class="mask" id="aboutMask">
+  <div class="paper-pop">
+    <button class="close-x" data-close="aboutMask">✕</button>
+    <h3>关于馆藏</h3>
+    <div class="sub">GUAN HUA · 观古画</div>
+    <div class="body">
+      画卷馆藏以数字长卷的方式，徐徐展开一幅幅传世名画。不施浓艳，不堆砌喧哗，
+      只以宣纸为底、淡墨为引，邀您循古人笔意，入画中人境。<br><br>
+      当前已开放完整体验的有七幅：清明上河图（北宋张择端本，含逛夜市小游戏）、
+      韩熙载夜宴图、货郎图、虢国夫人游春图、簪花仕女图（含仕女妆扮小游戏）、步辇图、挥扇仕女图。
+      其余三幅长卷暂提供漫游浏览，剧情玩法将陆续开放。
+    </div>
+    <div class="pop-actions"><span></span><button class="seal-btn" data-close="aboutMask">合上</button></div>
+  </div>
+</div>
+<div class="mask" id="feedbackMask">
+  <div class="paper-pop">
+    <button class="close-x" data-close="feedbackMask">✕</button>
+    <h3>意见反馈</h3>
+    <div class="sub">片纸短笺 · 随写随存</div>
+    <textarea id="feedbackText" placeholder="写下您的建议或勘误……（内容仅保存在本地浏览器）"></textarea>
+    <div class="feed-list" id="feedHistory"></div>
+    <div class="pop-actions">
+      <button class="text-btn" id="clearFeedBtn">清空本地记录</button>
+      <button class="seal-btn" id="submitFeedBtn">投递</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ================================================================
+   画卷馆藏 · 主脚本（细化版）
+   模块：
+     01 工具 / 提示        05 入画探索列表（擦除上色）
+     02 页面路由           06 全景浏览（滚轮 + 方向键）
+     03 首页（保留）       07 图鉴系统（localStorage）
+     04 弹窗与反馈         08 小剧场引擎 + 六段剧本
+   扩展接口：PAINTINGS（新增画作）、THEATERS / CODEX（新增剧情）
+   ================================================================ */
+
+/* ---------------- 01 工具 / 提示 ---------------- */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+let toastTimer=null;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;
+  el.classList.add('show');clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2400);}
+
+/* 图片加载：多源回退，最终显示墨色占位 */
+function loadImgWithFallback(img,urls){
+  let i=0;
+  const tryNext=()=>{ if(i<urls.length){img.dataset.cur=urls[i];img.src=urls[i++];} };
+  img.addEventListener('error',()=>{ if(img.src===img.dataset.cur) tryNext(); });
+  tryNext();
+  return img;
+}
+
+/* 看门狗加载：timeout 内无响应自动降级下一图源（解决请求挂起不触发 error 的问题） */
+function loadPanoImg(img,urls,timeout=20000){
+  let i=0,timer=null;
+  const next=()=>{clearTimeout(timer);
+    if(i>=urls.length){toast('长卷高清图源加载失败，请检查网络');return;}
+    img.dataset.cur=urls[i];img.src=urls[i++];
+    timer=setTimeout(()=>{
+      if(img.dataset.cur===img.src&&!(img.complete&&img.naturalWidth)) next();
+    },timeout);};
+  img.addEventListener('load',()=>clearTimeout(timer));
+  next();
+  return img;
+}
+
+/* ---------------- 04 弹窗与反馈（localStorage 暂存） ---------------- */
+function openMask(id){document.getElementById(id).classList.add('show');}
+function closeMask(id){document.getElementById(id).classList.remove('show');}
+document.querySelectorAll('[data-close]').forEach(b=>
+  b.addEventListener('click',()=>closeMask(b.dataset.close)));
+document.querySelectorAll('.mask').forEach(m=>
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
+const FEED_KEY='ghj_feedback_list';
+const getFeeds=()=>{try{return JSON.parse(localStorage.getItem(FEED_KEY))||[];}catch(e){return[];}};
+function renderFeedHistory(){const l=getFeeds();
+  document.getElementById('feedHistory').textContent=
+    l.length?`本地已存 ${l.length} 条 · 最新：${l[l.length-1].slice(0,18)}……`:'';}
+document.getElementById('submitFeedBtn').addEventListener('click',()=>{
+  const ta=document.getElementById('feedbackText'),text=ta.value.trim();
+  if(!text){toast('请先写下一些内容');return;}
+  const l=getFeeds();l.push(text);
+  try{localStorage.setItem(FEED_KEY,JSON.stringify(l));}catch(e){}
+  ta.value='';renderFeedHistory();closeMask('feedbackMask');toast('已收录您的反馈，感谢');});
+document.getElementById('clearFeedBtn').addEventListener('click',()=>{
+  try{localStorage.removeItem(FEED_KEY);}catch(e){}
+  renderFeedHistory();toast('本地反馈记录已清空');});
+
+/* ---------------- 02 页面路由 ---------------- */
+const PAGES=['home','explore','pano'];
+function showPage(id){PAGES.forEach(p=>{
+  document.getElementById(p).style.display=(p===id)?'block':'none';});
+}
+/* 小剧场开关 */
+function openTheater(){$('theater').style.display='flex';}
+function closeTheater(){$('theater').style.display='none';}
+const $=id=>document.getElementById(id);
+
+/* ---------------- 03 首页逻辑（沿用原版式） ---------------- */
+(function initHome(){
+  const bg=$('homeBg');
+  bg.addEventListener('error',()=>{ if(!bg.dataset.fbk){bg.dataset.fbk=1;
+    bg.src='https://commons.wikimedia.org/wiki/Special:FilePath/%E6%B8%85%E6%98%8E%E4%B8%8A%E6%B2%B3%E5%9B%BE.jpg?width=1920';}});
+  const wrap=$('homeBgWrap');let px=0,target=0;
+  window.addEventListener('mousemove',e=>{
+    target=(e.clientX/window.innerWidth-.5)*26;});
+  (function parallax(){px=lerp(px,target,.04);
+    wrap.style.marginLeft=px+'px';requestAnimationFrame(parallax);})();
+  $('enterBtn').addEventListener('click',()=>showPage('explore'));
+  $('navGallery').addEventListener('click',()=>showPage('explore'));
+  $('navAbout').addEventListener('click',()=>openMask('aboutMask'));
+  $('navFeedback').addEventListener('click',()=>{renderFeedHistory();openMask('feedbackMask');});
+  $('exploreBack').addEventListener('click',()=>showPage('home'));
+})();
+
+/* ================================================================
+   画卷数据注册表 —— 新增古画仅需在此追加条目
+   theater:false / codex:false 表示仅基础漫游框架（本阶段其余5幅）
+   ================================================================ */
+const PAINTINGS=[
+  {id:'qingming',title:'清明上河图',dynasty:'北宋 · 张择端',open:true,
+  desc:'汴河两岸，市井百态——逛夜市小游戏已开放。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/Alongtheriver_QingMing.jpg?width=10000',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/Alongtheriver_QingMing.jpg?width=6000',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/Alongtheriver_QingMing.jpg?width=3200'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/Alongtheriver_QingMing.jpg?width=3200'],
+      segs:[
+       'https://img.jiguzuo.com/guohua/changjuan/202511/1660225601611dbd290c900492e40e30.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/f7d0527d8ba7ebc697ab8e938abfbd37.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/87477c6495284f4461547e490526ce88.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/49c0ba9a6dafe59f2a30c4131881bec5.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/1e24cd200a0b7d1ff7279a59e405d641.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/86827dc662171b255f366152242c5e0a.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/dd93063429351f45c466c41ed2ca9fb2.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/98da3ce812119e8ff364b52a90bf84bb.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/824d8e297accabdd06c5eecee3c4bf8d.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/4faafbd4acd2a47469e81228ca143238.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/924627d76e7dd2cc04b174630616921d.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/85555f4f0e165cd19e3be7b13dab17fb.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/8705db72d489d4371c9099efd0ba65e0.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/a972a765cc412ea76d3a526392364be4.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/4cd0d5ea58afdb1ca2a82a83e9a64e88.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/f04160bab75fa54c20e2c7498bf7ee42.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/b1d30cb04f11c12008f8e755096feb88.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/4491403b0d5fca487203724a9529504d.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/c40986be80d951650cab814a3f2d4161.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/cf1cbf98bc32e8676ffdff58899865dd.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/86ceebd5681a20ca91d86afaac319fcc.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/60ae742326a720c66445293b146e9631.jpg!webp',
+       'https://img.jiguzuo.com/guohua/changjuan/202511/6b2fe6d46c4ec2061822a96b3516d56c.jpg!webp'],
+  /* 热点：张择端本特殊建筑与组合（第一批） */
+  hotspots:[
+    {id:'hongqiao2', fx:.42, fy:.50, label:'虹桥'},
+    {id:'kechuan',   fx:.40, fy:.68, label:'汴河客船'},
+    {id:'zhengdian', fx:.60, fy:.55, label:'孙羊正店'},
+    {id:'chenglou',  fx:.78, fy:.45, label:'城楼'},
+  ],theater:true,codex:true},
+  {id:'hanxizai',title:'韩熙载夜宴图',dynasty:'五代 · 顾闳中（宋摹本）',open:true,
+  desc:'一场被屏风隔开的千年夜宴：听乐、观舞、暂歇、清吹、散宴。剧情与图鉴已开放。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/Gu%20Hongzhong%27s%20Night%20Revels%201%20edit.jpg?width=8000',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/%E9%9F%A9%E7%86%99%E8%BD%BD%E5%A4%9C%E5%AE%B4%E5%9B%BE.tif?width=8000'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/Gu%20Hongzhong%27s%20Night%20Revels%201%20edit.jpg?width=3200'],
+  /* 热点：长卷自右向左展开，卷首"听乐"在右端，卷尾"散宴"在左端 */
+  hotspots:[
+    {id:'guzhong',  fx:.10, fy:.52, label:'散宴 · 送别'},
+    {id:'qingchui', fx:.30, fy:.50, label:'清吹 · 管乐'},
+    {id:'hanx',     fx:.47, fy:.52, label:'主人 · 韩熙载'},
+    {id:'guwu',     fx:.64, fy:.50, label:'观舞 · 羯鼓', cid:'wuwushan'},
+    {id:'pipa',     fx:.86, fy:.50, label:'听乐 · 琵琶', cid:'lijia'},
+  ],theater:true,codex:true},
+ {id:'huolang',title:'货郎图',dynasty:'南宋 · 李嵩',open:true,
+  desc:'担上百货，村童喧嚷——四个小场景问答与图鉴已开放。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/%E6%9D%8E%E5%B5%A9%E8%B4%A7%E9%83%8E%E5%9B%BE%E5%8D%B7.png?width=8000'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/%E6%9D%8E%E5%B5%A9%E8%B4%A7%E9%83%8E%E5%9B%BE%E5%8D%B7.png?width=2400'],
+  /* 热点：村童围拢于画左，货郎担在卷中，乡路向画右延伸 */
+  hotspots:[
+    {id:'children', fx:.24, fy:.60, label:'村童妇孺'},
+    {id:'huolang',  fx:.45, fy:.46, label:'货郎'},
+    {id:'goods',    fx:.63, fy:.44, label:'百货物担'},
+    {id:'why',      fx:.85, fy:.62, label:'乡路'},
+  ],theater:true,codex:true},
+ {id:'guoguo',title:'虢国夫人游春图',dynasty:'唐 · 张萱（宋摹本）',open:true,
+  desc:'天宝十一年，杨氏姐妹骑马游春——四段小场景问答与图鉴已开放。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/The_Spring_Travel_of_the_Guo_State_Queen.jpg',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/%E8%99%A2%E5%9B%BD%E5%A4%AB%E4%BA%BA%E6%B8%B8%E6%98%A5%E5%9B%BE.jpg'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/The_Spring_Travel_of_the_Guo_State_Queen.jpg?width=3200',
+         'https://commons.wikimedia.org/wiki/Special:FilePath/%E8%99%A2%E5%9B%BD%E5%A4%AB%E4%BA%BA%E6%B8%B8%E6%98%A5%E5%9B%BE.jpg?width=3200'],
+  /* 热点：队伍自右向左行进；最右前方骑三花马者为虢国夫人，向左依次为随行女眷（并非皆着男装） */
+  hotspots:[
+    {id:'spring', fx:.14, fy:.58, label:'游春'},
+    {id:'dress',  fx:.34, fy:.54, label:'女着男装'},
+    {id:'horse',  fx:.56, fy:.58, label:'三花御马'},
+    {id:'who',    fx:.74, fy:.50, label:'虢国夫人'},
+  ],theater:true,codex:true},
+  {id:'zanhua',title:'簪花仕女图',dynasty:'唐 · 周昉',open:true,
+  desc:'高髻簪花，披帛曳裙，白鹤猧儿点缀其间。四重身份问答与图鉴已开放。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/Zhou%20Fang.%20Court%20Ladies%20Wearing%20Flowered%20Headdresses.%20%2846x180%29%20Liaoning%20Provincial%20Museum%2C%20Shenyang..jpg'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/Zhou%20Fang.%20Court%20Ladies%20Wearing%20Flowered%20Headdresses.%20%2846x180%29%20Liaoning%20Provincial%20Museum%2C%20Shenyang..jpg?width=3200',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/%E5%94%90%E5%91%A8%E6%98%89%E7%B0%AA%E8%8A%B1%E4%BB%95%E5%A5%B3%E5%9B%BE.jpg?width=3200'],
+  /* 热点：左端湖石辛夷花开，其右仕女拈花执蝶；卷首逗犬仕女在右端 */
+  hotspots:[
+    {id:'flower',fx:.07, fy:.42, label:'辛夷花'},
+    {id:'hand',  fx:.33, fy:.52, label:'拈花仕女'},
+    {id:'crane', fx:.44, fy:.66, label:'白鹤'},
+    {id:'maid',  fx:.60, fy:.58, label:'执扇侍女'},
+    {id:'lady',  fx:.74, fy:.55, label:'簪花仕女'},
+    {id:'dog',   fx:.90, fy:.74, label:'猧儿'},
+  ],theater:true,codex:true},
+ /* —— 以下为纯图占位画作（图源自动回退，剧情后续开发） —— */
+ {id:'bunian',title:'步辇图',dynasty:'唐 · 阎立本',open:true,
+  desc:'太宗乘步辇，禄东赞请婚——四个场景问答与图鉴已开放。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/Emperor_Taizong_gives_an_audience_to_the_ambassador_of_Tibet.jpg?width=6000',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/Buliantu.jpg'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/Emperor_Taizong_gives_an_audience_to_the_ambassador_of_Tibet.jpg?width=1600',
+         'https://commons.wikimedia.org/wiki/Special:FilePath/Buliantu.jpg'],
+  /* 热点：自左向右为 通译官 → 禄东赞 → 典礼官 → 唐太宗步辇
+     坐标按主图源 Emperor_Taizong_gives_an_audience...jpg（1890×1049）画面比例实测定位 */
+  hotspots:[
+    {id:'interpreter',fx:.091,fy:.58,label:'白衣通译'},
+    {id:'ludongzan',  fx:.227,fy:.56,label:'禄东赞'},
+    {id:'lidian',     fx:.376,fy:.52,label:'绯袍典礼官'},
+    {id:'taizong',    fx:.753,fy:.48,label:'唐太宗 · 步辇'},
+  ],theater:true,codex:true},
+ /* —— 新增四幅：基础漫游框架（图源自动回退，剧情后续开发） —— */
+ {id:'hangong',title:'汉宫春晓图',dynasty:'明 · 仇英',open:false,
+  desc:'晨光入汉宫，丽人百态——剧情开发中。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/Spring%20Morning%20in%20the%20Han%20Palace%20%28%E6%B1%89%E5%AE%AB%E6%98%A5%E6%99%93%E5%9B%BE%29.jpg?width=3080','https://commons.wikimedia.org/wiki/Special:FilePath/%E6%B1%89%E5%AE%AB%E6%98%A5%E6%99%93%E5%9B%BE.jpg'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/Spring%20Morning%20in%20the%20Han%20Palace%20%28%E6%B1%89%E5%AE%AB%E6%98%A5%E6%99%93%E5%9B%BE%29.jpg?width=2400','https://commons.wikimedia.org/wiki/Special:FilePath/%E6%B1%89%E5%AE%AB%E6%98%A5%E6%99%93%E5%9B%BE.jpg'],
+  theater:false,codex:false},
+ {id:'daolian',title:'捣练图',dynasty:'唐 · 张萱（宋徽宗摹本）',open:false,
+  desc:'捣练、理线、熨帛，仕女劳作之图——剧情开发中。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/Zhang%20Xuan%20Huizong.jpg?width=8000','https://commons.wikimedia.org/wiki/Special:FilePath/Court%20Ladies%20Preparing%20Newly%20Woven%20Silk%20%28%E6%8D%A3%E7%BB%83%E5%9B%BE%29%20by%20Emperor%20Huizong%20%281082%E2%80%931135%29.jpg'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/Zhang%20Xuan%20Huizong.jpg?width=3200','https://commons.wikimedia.org/wiki/Special:FilePath/Court%20Ladies%20Preparing%20Newly%20Woven%20Silk%20%28%E6%8D%A3%E7%BB%83%E5%9B%BE%29%20by%20Emperor%20Huizong%20%281082%E2%80%931135%29.jpg?width=1600'],
+  theater:false,codex:false},
+ {id:'yuanxiao',title:'宪宗元宵行乐图',dynasty:'明 · 佚名',open:false,
+  desc:'宪宗观灯，元宵行乐——剧情开发中。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/%E6%98%8E%E6%86%B2%E5%AE%97%E5%85%83%E5%AE%B5%E8%A1%8C%E6%A8%82%E5%9C%968.jpg','https://commons.wikimedia.org/wiki/Special:FilePath/%E6%98%8E%E6%86%B2%E5%AE%97%E5%85%83%E5%AE%B5%E8%A1%8C%E6%A8%82%E5%9C%967.jpg','https://commons.wikimedia.org/wiki/Special:FilePath/%E6%98%8E%E6%86%B2%E5%AE%97%E5%85%83%E5%AE%B5%E8%A1%8C%E6%A8%82%E5%9C%966.jpg'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/%E6%98%8E%E6%86%B2%E5%AE%97%E5%85%83%E5%AE%B5%E8%A1%8C%E6%A8%82%E5%9C%968.jpg','https://commons.wikimedia.org/wiki/Special:FilePath/%E6%98%8E%E6%86%B2%E5%AE%97%E5%85%83%E5%AE%B5%E8%A1%8C%E6%A8%82%E5%9C%967.jpg'],
+  theater:false,codex:false},
+ {id:'huishan',title:'挥扇仕女图',dynasty:'唐 · 周昉（宋摹本）',open:true,
+  desc:'高髻执扇，宫闱夏意——仕女身份、发髻与场景问答已开放。',
+  img:['https://commons.wikimedia.org/wiki/Special:FilePath/%E5%91%A8%E6%98%89%E6%8C%A5%E6%89%87%E4%BB%95%E5%A5%B3%E5%9B%BE%E5%8D%B7.png?width=8000',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/%E5%91%A8%E6%98%89%E6%8C%A5%E6%89%87%E4%BB%95%E5%A5%B3%E5%9B%BE%E5%8D%B7.png?width=4000',
+       'https://commons.wikimedia.org/wiki/Special:FilePath/%E6%8F%AE%E6%89%87%E4%BB%95%E5%A5%B3%E5%9C%96.jpg'],
+  thumb:['https://commons.wikimedia.org/wiki/Special:FilePath/%E5%91%A8%E6%98%89%E6%8C%A5%E6%89%87%E4%BB%95%E5%A5%B3%E5%9B%BE%E5%8D%B7.png?width=3200','https://commons.wikimedia.org/wiki/Special:FilePath/%E6%8F%AE%E6%89%87%E4%BB%95%E5%A5%B3%E5%9C%96.jpg'],
+  /* 热点：卷自右向左展开（卷首在右）。坐标按全卷画面比例逐人实测定位 */
+  hotspots:[
+    /* —— 人物身份（含侍女） —— */
+    {id:'huifu',   fx:.963,fy:.60,label:'挥扇贵妇'},
+    {id:'chishan', fx:.878,fy:.58,label:'持扇侍女'},
+    {id:'pengzhan',fx:.772,fy:.58,label:'捧盏贵妇'},
+    {id:'baoqin',  fx:.712,fy:.58,label:'抱琴仕女'},
+    {id:'zhanjuan',fx:.618,fy:.58,label:'展卷仕女'},
+    {id:'hongshi', fx:.662,fy:.68,label:'捧卷侍女'},
+    {id:'shuangli',fx:.458,fy:.58,label:'伫立侍女'},
+    {id:'ceyi',    fx:.187,fy:.62,label:'侧倚仕女'},
+    {id:'duanli',  fx:.138,fy:.58,label:'端立侍女'},
+    {id:'zhuan',   fx:.290,fy:.68,label:'朱红长案'},
+    {id:'weian',   fx:.290,fy:.50,label:'围案消闲'},
+    /* —— 发髻样式（重复样式不重复标注） —— */
+    {id:'fa_guan',     fx:.963,fy:.33,label:'花冠'},
+    {id:'fa_paojia',   fx:.878,fy:.28,label:'抛家髻'},
+    {id:'fa_gaoji',    fx:.712,fy:.30,label:'高椎髻'},
+    {id:'fa_shuanghuan',fx:.618,fy:.36,label:'双鬟髻'},
+    /* —— 各组活动 —— */
+    {id:'q_huishan',fx:.920,fy:.48,label:'挥扇纳凉'},
+    {id:'q_guanhua',fx:.680,fy:.48,label:'展卷观画'},
+    {id:'q_zhuli',  fx:.458,fy:.48,label:'伫立闲话'},
+  ],theater:true,codex:true},
+];
+
+/* ---------------- 05 入画探索列表（擦除上色，六卡共用一套逻辑） ---------------- */
+(function buildExplore(){
+  const box=$('exploreList');
+  PAINTINGS.forEach(p=>{
+    const card=document.createElement('div');card.className='p-card';
+    card.innerHTML=`
+      <div class="ph-img">
+        <div class="ph-fallback" style="display:none"><span>长卷装裱中</span><small>图源暂不可达，稍后再来</small></div>
+        <img class="gray" alt="">
+        <img class="color" alt="">
+      </div>
+      <span class="tag ${p.open?'open':''}">${p.open?'已开放':'开发中'}</span>
+      <div class="caption">
+        <h3>《${p.title}》</h3><span class="dyn">${p.dynasty}</span><p>${p.desc}</p>
+      </div>`;
+    const gray=card.querySelector('.gray'),color=card.querySelector('.color');
+    [gray,color].forEach(img=>loadImgWithFallback(img,[...p.thumb]).addEventListener('error',()=>{
+      if(!img.dataset.fbk){img.dataset.fbk=1;
+        card.querySelector('.ph-fallback').style.display='flex';
+        gray.style.display=color.style.display='none';}}));
+    /* 圆形晕染擦除：双图层 + CSS mask 跟随笔尖 */
+    const ph=card.querySelector('.ph-img');
+    ph.addEventListener('mousemove',e=>{
+      const r=ph.getBoundingClientRect();
+      ph.style.setProperty('--mx',(e.clientX-r.left)+'px');
+      ph.style.setProperty('--my',(e.clientY-r.top)+'px');});
+    ph.addEventListener('mouseleave',()=>{
+      ph.style.setProperty('--mx','-500px');ph.style.setProperty('--my','-500px');});
+    card.addEventListener('click',()=>loadPano(p.id));
+    box.appendChild(card);
+  });
+})();
+
+/* ---------------- 06 全景浏览：滚轮缩放 + 方向键平移 + 拖拽 ---------------- */
+const view={x:0,y:0,s:.3};          // 视图变换（translate + scale）
+let curPaint=null,imgNatW=0,imgNatH=0;
+const panoStage=$('panoStage'),panoWrap=$('panoWrap'),panoImg=$('panoImg');
+
+let exploreScrollY=0;   // 进入画卷前，记住列表页滚动位置
+function loadPano(id){
+  const p=PAINTINGS.find(v=>v.id===id);if(!p)return;
+  exploreScrollY=document.getElementById('explore').scrollTop;
+  curPaint=p;
+  $('panoTitle').textContent=`《${p.title}》 · ${p.dynasty}`;
+  $('codexBtn').style.display=p.codex?'block':'none';
+  $('dressBtn').style.display=(p.id==='zanhua')?'block':'none';
+  $('nightBtn').style.display=(p.id==='qingming')?'block':'none';
+  /* 修复增色版（挥扇仕女图 / 清明上河图）：默认开启，可切换回画卷原样 */
+  const isRestore=(p.id==='huishan');
+  panoWrap.style.setProperty('--rf',p.filter||'saturate(1.5) contrast(1.18) brightness(1.06) sepia(.12)');
+  panoImg.classList.toggle('restore',isRestore);
+  panoWrap.querySelectorAll('.seg').forEach(im=>im.classList.toggle('restore',isRestore));
+  $('srcToggle').style.display=isRestore?'block':'none';
+  $('srcToggle').textContent=isRestore?'画卷原样':'修复版本';
+  $('panoNote').style.display=isRestore?'block':'none';
+  $('panoHint').textContent=p.hotspots?'滚轮缩放 · 方向键漫游 · 点击金圈进入场景':'滚轮缩放 · 方向键漫游 · 拖动下方全图预览快速定位';
+  /* 注入热点（仅清明） */
+  panoWrap.querySelectorAll('.hotspot').forEach(h=>h.remove());
+  if(p.hotspots)p.hotspots.forEach(h=>{
+    const d=document.createElement('div');d.className='hotspot';d.dataset.hid=h.id;
+    d.style.left=(h.fx*100)+'%';d.style.top=(h.fy*100)+'%';
+    d.dataset.cid=h.cid||h.id;
+    d.innerHTML=`<span>${h.label}${getUnlock()[d.dataset.cid]?' ✓':''}</span>`;
+    d.addEventListener('click',e=>{e.stopPropagation();startTheater(h.id,h.label);});
+    panoWrap.appendChild(d);});
+  mmImg.src=p.thumb[0];          // 导航条先行切换缩略图，杜绝上一幅残留
+  mmEl.style.display='none';mmK=0;
+  panoWrap.querySelectorAll('.seg').forEach(el=>el.remove());
+  panoImg.style.display='';
+  showPage('pano');renderCodex();      // 先切页，图片异步就绪（分段或整卷均不阻塞）
+  /* 分段长卷优先：segs 为整卷无重叠分条图（集古作 CDN），全部就绪后无缝并排 */
+  if(p.segs&&p.segs.length){loadSegs(p);return;}
+  loadPanoImg(panoImg,p.img);
+  panoImg.onload=()=>{imgNatW=panoImg.naturalWidth;imgNatH=panoImg.naturalHeight;
+    panoWrap.style.width=imgNatW+'px';panoWrap.style.height=imgNatH+'px';
+    fitView();
+    mmEl.style.display=(imgNatW/imgNatH>5)?'block':'none';
+    updateMinimap();};
+}
+/* —— 分段长卷加载：33 条无重叠整卷切片无缝并排；失败过多自动回退整图 —— */
+function loadSegs(p){
+  const urls=p.segs,ims=[],retried={};
+  let done=0,fail=0;
+  const finish=()=>{
+    if(fail>urls.length*0.15){        // 失败过多 → 回退维基整图源
+      panoWrap.querySelectorAll('.seg').forEach(el=>el.remove());
+      toast('分条图源不稳定，切换整卷加载');
+      loadPanoImg(panoImg,p.img);
+      panoImg.onload=()=>{imgNatW=panoImg.naturalWidth;imgNatH=panoImg.naturalHeight;
+        panoWrap.style.width=imgNatW+'px';panoWrap.style.height=imgNatH+'px';
+        fitView();mmEl.style.display=(imgNatW/imgNatH>5)?'block':'none';updateMinimap();};
+      return;}
+    let x=0;imgNatH=0;
+    ims.forEach(im=>{if(im.naturalWidth)imgNatH=Math.max(imgNatH,im.naturalHeight);});
+    ims.forEach(im=>{if(im.naturalWidth){im.style.left=x+'px';x+=im.naturalWidth;}});
+    imgNatW=x;
+    panoImg.style.display='none';
+    panoWrap.style.width=imgNatW+'px';panoWrap.style.height=imgNatH+'px';
+    fitView();
+    mmEl.style.display=(imgNatW/imgNatH>5)?'block':'none';
+    /* 导航条：分段绘制到小画布再转 dataURL，同步缩放零残留 */
+    const W=mmEl.clientWidth,H=mmEl.clientHeight-8;
+    const k=Math.min(W/imgNatW,H/imgNatH);
+    const cv=document.createElement('canvas');
+    cv.width=Math.max(1,Math.round(imgNatW*k));cv.height=Math.max(1,Math.round(imgNatH*k));
+    const ctx=cv.getContext('2d');
+    ctx.fillStyle='#241f18';ctx.fillRect(0,0,cv.width,cv.height);
+    let dx=0;
+    ims.forEach(im=>{if(im.naturalWidth){
+      const dw=Math.max(1,Math.round(im.naturalWidth*k));
+      ctx.drawImage(im,dx,0,dw,cv.height);dx+=dw;}});
+    mmImg.src=cv.toDataURL('image/jpeg',.72);
+    updateMinimap();
+    if(fail>0)toast(fail+' 个分条加载失败，已跳过');};
+  urls.forEach(u=>{
+    const im=new Image();im.className='seg';
+    im.draggable=false;
+    im.style.cssText='position:absolute;top:0;display:none;';
+    im.onload=()=>{im.style.display='';if(++done===urls.length)finish();};
+    im.onerror=()=>{if(!retried[u]){retried[u]=1;im.src=u+'?r=1';}
+      else{fail++;if(++done===urls.length)finish();}};
+    im.src=u;ims.push(im);panoWrap.appendChild(im);});}
+
+function applyView(){panoWrap.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.s})`;updateMinimap();}
+
+/* —— 全图预览导航条：仅长卷显示；可视区域金框跟随，点击/拖拽定位 —— */
+const mmEl=$('minimap'),mmImg=$('minimapImg'),mmView=$('mmView');
+let mmK=0,mmOX=0,mmOY=0;
+function updateMinimap(){
+  if(mmEl.style.display!=='block'||!imgNatW)return;
+  const W=mmEl.clientWidth,H=mmEl.clientHeight;
+  mmK=Math.min(W/imgNatW,(H-8)/imgNatH);
+  const w=imgNatW*mmK,h=imgNatH*mmK;
+  mmOX=(W-w)/2;mmOY=(H-h)/2;
+  mmImg.style.width=w+'px';mmImg.style.height=h+'px';
+  mmImg.style.left=mmOX+'px';mmImg.style.top=mmOY+'px';
+  mmView.style.left=mmOX+(-view.x/view.s)*mmK+'px';
+  mmView.style.top =mmOY+(-view.y/view.s)*mmK+'px';
+  mmView.style.width =panoStage.clientWidth/view.s*mmK+'px';
+  mmView.style.height=panoStage.clientHeight/view.s*mmK+'px';}
+function mmGo(e){
+  const r=mmEl.getBoundingClientRect();
+  const ix=(e.clientX-r.left-mmOX)/mmK,iy=(e.clientY-r.top-mmOY)/mmK;
+  if(ix<0||iy<0||ix>imgNatW||iy>imgNatH)return;
+  view.x=panoStage.clientWidth/2-ix*view.s;
+  view.y=panoStage.clientHeight/2-iy*view.s;
+  clampView();applyView();}
+let mmDrag=false;
+mmEl.addEventListener('mousedown',e=>{mmDrag=true;mmGo(e);});
+window.addEventListener('mousemove',e=>{if(mmDrag)mmGo(e);});
+window.addEventListener('mouseup',()=>{mmDrag=false;});
+function fitView(){
+  if(!imgNatW)return;
+  view.s=Math.min(panoStage.clientWidth/imgNatW,panoStage.clientHeight/imgNatH)*.96;
+  view.x=(panoStage.clientWidth-imgNatW*view.s)/2;
+  view.y=(panoStage.clientHeight-imgNatH*view.s)/2;
+  applyView();}
+function clampView(){
+  const vw=panoStage.clientWidth,vh=panoStage.clientHeight,m=90;
+  view.x=clamp(view.x,m-imgNatW*view.s,vw-m);
+  view.y=clamp(view.y,m-imgNatH*view.s,vh-m);}
+$('panoBack').addEventListener('click',()=>{showPage('explore');
+  requestAnimationFrame(()=>{document.getElementById('explore').scrollTop=exploreScrollY;});});
+$('panoFit').addEventListener('click',fitView);
+$('srcToggle').addEventListener('click',()=>{
+  const on=panoImg.classList.toggle('restore');
+  panoWrap.querySelectorAll('.seg').forEach(im=>im.classList.toggle('restore',on));
+  $('srcToggle').textContent=on?'画卷原样':'修复版本';
+  toast(on?'已切换为修复增色版':'已切换为画卷原样');});
+window.addEventListener('resize',()=>{if(curPaint){clampView();updateMinimap();}});
+
+/* 滚轮缩放（光标为中心） */
+panoStage.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=Math.exp(-e.deltaY*.0012),s2=clamp(view.s*f,.06,5);
+  const wx=(e.clientX-view.x)/view.s,wy=(e.clientY-view.y)/view.s;
+  view.s=s2;view.x=e.clientX-wx*s2;view.y=e.clientY-wy*s2;clampView();applyView();
+},{passive:false});
+
+/* 拖拽平移（桌面端补充；方向键见下） */
+let panDrag=false,pmx=0,pmy=0;
+panoStage.addEventListener('mousedown',e=>{panDrag=true;pmx=e.clientX;pmy=e.clientY;
+  panoStage.classList.add('dragging');});
+window.addEventListener('mousemove',e=>{if(!panDrag)return;
+  view.x+=e.clientX-pmx;view.y+=e.clientY-pmy;pmx=e.clientX;pmy=e.clientY;
+  clampView();applyView();});
+window.addEventListener('mouseup',()=>{panDrag=false;panoStage.classList.remove('dragging');});
+
+/* 键盘上下左右：按住持续平移漫游（rAF 平滑） */
+const keysDown={};
+window.addEventListener('keydown',e=>{
+  if($('pano').style.display!=='block'||$('theater').style.display==='flex')return;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();keysDown[e.key]=true;}});
+window.addEventListener('keyup',e=>{keysDown[e.key]=false;});
+(function panLoop(){
+  if($('pano').style.display==='block'&&imgNatW){
+    const sp=26;let moved=false;
+    if(keysDown.ArrowLeft) {view.x+=sp;moved=true;}
+    if(keysDown.ArrowRight){view.x-=sp;moved=true;}
+    if(keysDown.ArrowUp)   {view.y+=sp;moved=true;}
+    if(keysDown.ArrowDown) {view.y-=sp;moved=true;}
+    if(moved){clampView();applyView();}}
+  requestAnimationFrame(panLoop);})();
+
+/* ---------------- 07 图鉴系统（localStorage，刷新不丢） ---------------- */
+const CODEX_KEY='ghj_codex_unlocked';
+const getUnlock=()=>{try{return JSON.parse(localStorage.getItem(CODEX_KEY))||{};}catch(e){return{};}};
+function unlock(id){
+  const u=getUnlock();if(u[id])return false;
+  u[id]=true;try{localStorage.setItem(CODEX_KEY,JSON.stringify(u));}catch(e){}
+  return true;}
+/* 图鉴卡片内容：身份 / 场景简介 / 北宋历史背景 */
+const CODEX={
+  /* —— 簪花仕女图（唐 · 周昉）图鉴 —— */
+  lady:{name:'簪花仕女',paint:'zanhua',scene:'簪花仕女图',place:'此卷不设背景，以贵族宅邸庭园为境。五仕女一侍女散布其间，逗犬、拈花、戏鹤、扑蝶——它把中唐贵族妇女的闲适与寂寞一并定格，是“以时世妆写时世情”的仕女画巅峰。',
+    role:'身份 · 中唐贵族妇女',
+    intro:'高髻簪花、身披纱帔、曳地长裙，行止慵懒华贵。髻间簪牡丹、芍药、荷花、绣球等时花，眉间贴金花子，谓之“时世妆”。',
+    bg:'周昉创“水月观音”之体，仕女画时称“周家样”。《簪花仕女图》以工笔重彩写丰腴之姿，是盛唐气象转向中唐闲愁的缩影。'},
+  maid:{name:'执扇侍女',paint:'zanhua',scene:'簪花仕女图',place:'唐代贵族出行居处皆有侍女随侍，持扇、捧奁、执拂各有专职。画中侍女持长柄团扇侍立，衣饰素净、不簪大花——等级秩序就藏在这些细节里。',
+    role:'身份 · 贵族侍女',
+    intro:'她执长柄团扇静立一旁，神情恭谨安然，与五位贵妇的雍容形成鲜明对照。',
+    bg:'《宫乐图》《挥扇仕女图》中亦多见执扇侍女。团扇既是日常用具，也是仕女画中点明主仆身份的视觉符号。'},
+  crane:{name:'白鹤',paint:'zanhua',scene:'簪花仕女图',place:'鹤在唐代是祥瑞、长寿与高洁的象征，贵族苑囿常蓄仙鹤。周昉以鹤入仕女图，既取其仙姿映衬仕女丰韵，又以鹤之孤高，反照出画中人逗犬扑蝶也驱不散的寂寞。',
+    role:'意象 · 仙禽与苑囿宠物',
+    intro:'白鹤振翅于仕女之间，与牡丹、辛夷相衬，为画面添一份灵动与清气。',
+    bg:'唐人爱鹤成风，鹤入仕女图既有祥瑞寓意，也是贵族园林蓄养风习的真实写照——瑞禽与宠物，一而二、二而一。'},
+  xinyi:{name:'辛夷花',paint:'zanhua',scene:'簪花仕女图',place:'画左湖石旁一树辛夷，又称木笔、紫玉兰，花开如盏，先花后叶。中唐庭院广为栽植，并非富贵人家专利——它在画中的作用，是以盛放的春树点明时令，衬出仕女们逗犬扑蝶也驱不散的闲愁。',
+    role:'意象 · 庭院名花',
+    intro:'辛夷紫苞如笔，唐人极爱。花开时节满树锦绣，是园林春景之冠。',
+    bg:'韩愈有"辛夷花房忽全开"之咏，白居易亦屡为题咏。仕女簪花多取牡丹芍药，而辛夷以花大色艳入画，人花相映，正是周昉“春园仕女”构图的经典一笔。'},
+  shinv:{name:'拈花仕女',paint:'zanhua',scene:'簪花仕女图',place:'此卷不设背景，以贵族宅邸庭园为境。卷首仕女拈折枝春花、披朱纱帔子、曳团花长裙——这身装扮是盛唐贵妇的“时世妆”标准像，并不特指某一位夫人。',
+    role:'身份 · 中唐贵族妇女（卷首）',
+    intro:'她手拈折枝花，身披帔子，长裙曳地，裙摆绣团花纹样——每一处细节都是身份与审美的注脚。',
+    bg:'帔子源自西域，唐时成为贵妇常服；团花（宝相花）纹样取“圆满富贵”之意。折枝花既是清供雅物，也是簪戴之源——一枝在手，春色满怀。'},
+  dog:{name:'猧儿',paint:'zanhua',scene:'簪花仕女图',place:'画中小狗名“猧儿”，即拂菻犬——唐初自西域拂菻（东罗马一带）进贡的小型犬。贵妇以红丝拂犬、以香球逗弄，画中两只猧儿，正是这一风尚的写照。',
+    role:'意象 · 异域进贡的宠物犬',
+    intro:'黑白猧儿或逐裙角、或卧花荫，深通人意，为仕女们遣闷解颐。',
+    bg:'李商隐《为有》诗写贵妇晨起“红丝拂犬”，正是以红丝逗猧儿的日常。一只小狗，见证了丝路物产的流入与宫廷生活的闲趣。'},
+  /* —— 韩熙载夜宴图（五代 · 顾闳中）图鉴 —— */
+  lijia:{name:'李家妹',paint:'hanxizai',scene:'听乐',place:'夜宴以“听乐”开篇：教坊副使李嘉明之妹拨响琵琶，满座凝神。教坊是宫廷执掌乐舞百戏之所，此段一案一琶，定下了全卷声色基调。',
+    role:'身份 · 教坊琵琶伎',
+    intro:'她怀抱琵琶轮指拨弦，兄长李嘉明在侧倾听关注，满座宾客皆为之沉醉。',
+    bg:'南唐教坊承唐制而设，为当时最顶级的音乐机构。《韩熙载夜宴图》中的每一曲琵琶，都是五代宫廷音乐生活的活化石。'},
+  wuwushan:{name:'王屋山',paint:'hanxizai',scene:'观舞',place:'“观舞”段中，家伎王屋山起舞，韩熙载亲擂羯鼓助兴。羯鼓出自西域，声促节紧——主人击鼓而不笑，是全卷最喧腾也最微妙的一幕。',
+    role:'身份 · 韩府家伎 · 舞姬',
+    intro:'她娇小玲珑，于羯鼓急节中旋身作六幺之舞，满座击掌合板。',
+    bg:'六幺即《绿腰》，唐代软舞之冠，“长于大髻，姿容婉媚”。宋人摹写此夜宴，也摹下了唐宋之间乐舞的余响。'},
+  hanxizai:{name:'韩熙载',paint:'hanxizai',scene:'暂歇',place:'“暂歇”段转入卧房，红烛高照，韩熙载净手小憩。屏风分隔的连环画式结构，让夜宴张弛有致——热闹背后，是他刻意示人的“荒纵”。',
+    role:'身份 · 南唐中书舍人 · 夜宴主人',
+    intro:'长髯高帽，眉宇沉郁。听乐、击鼓、小憩、送客，五段之中反复现身，却没有一次真正欢愉。',
+    bg:'韩熙载出身北方士族，避乱南渡。后主李煜疑其有异志，他遂纵情声色以自污避祸。《宣和画谱》记其“放怀杯酒间以自污”，道尽乱世臣子的进退两难。'},
+  guzhong:{name:'顾闳中',paint:'hanxizai',scene:'散宴',place:'“散宴”段客将尽、兴将阑。据《宣和画谱》，此卷正是后主李煜遣顾闳中夜探韩府、“目识心记”绘以上呈的政治画像——一场夜宴，画尽了一个王朝的末路心事。',
+    role:'身份 · 南唐画院待诏 · 画中“暗探”',
+    intro:'他潜入夜宴，凭目识心记绘下这一幕幕。画里无人知他来意，画外人人读得懂他的画笔。',
+    bg:'以画为谏、以画为谍，在中国绘画史上绝无仅有。顾闳中用工笔重彩完成了一次“视觉情报”，也意外成就了中国人物画的巅峰之作。'},
+  /* —— 韩熙载夜宴图 · 音舞：清吹乐伎 —— */
+  qingchui:{name:'清吹乐伎',paint:'hanxizai',scene:'清吹',place:'"清吹"段五人横坐一排，笛、箫、觱篥、拍板齐发，是全卷最安静也最专注的一段。屏风、烛影、管乐——夜宴至此，声色转为清商。',
+    role:'身份 · 韩府女乐',
+    intro:'她们不再舞唱，只执管横吹，眉眼低垂，与观舞段的喧腾判若两境。',
+    bg:'五代承唐乐，教坊曲部以"清吹"为坐部伎。顾闳中以五个女子定格一段唐宋之间的丝竹之声，让千年后的我们仍可想见其清韵。'},
+  /* —— 清明上河图 · 新增三处小游戏 —— */
+  /* —— 货郎图（南宋 · 李嵩）图鉴 —— */
+  huolang:{name:'货郎',paint:'huolang',scene:'货郎图',place:'他不在固定店铺，而是挑着百货物担走乡串村——南宋商品经济深入乡村的缩影。',
+    role:'身份 · 流动商贩',
+    intro:'担子两头，一头日用百货、一头儿童玩具，摇起拨浪鼓，妇孺闻声而来。',
+    bg:'货郎形象可追溯至宋代风俗画传统。李嵩以院体工笔写市井小人物，开了南宋风俗画关心民生的一路。'},
+  goods:{name:'百货物担',paint:'huolang',scene:'货郎图',place:'担上分层陈列：针线脂粉、日用杂货、儿童玩具，琳琅满目——一副担子，就是一间流动的百货铺。',
+    role:'意象 · 流动的商店',
+    intro:'风车、小鼓、面具、陀螺……每件小物都牵着孩子的目光。',
+    bg:'画中货物有数百件之多，是研究南宋手工业与商品种类的图像档案。风车寓"转运"，鱼形物件寓"有余"，皆吉祥之思。'},
+  children:{name:'村童妇孺',paint:'huolang',scene:'货郎图',place:'货郎一到，村童奔走相告，妇人携儿围拢——这是乡村社会的"购物狂欢节"。',
+    role:'身份 · 乡野买家',
+    intro:'孩子们盯着玩具挪不动步，母亲们挑选百货，烟火气扑面。',
+    bg:'南宋风俗画擅以孩童入画，既是生机，也是对太平生活的朴素祈愿。'},
+  why:{name:'画意',paint:'huolang',scene:'货郎图',place:'李嵩身为画院待诏，却屡屡描绘贩夫走卒——货郎担上承太平、下接地气，是画家对市井生灵的深情注视。',
+    role:'意象 · 风俗画传统',
+    intro:'画货郎，不为猎奇，为的是留住寻常百姓的日常。',
+    bg:'这幅画的深意在于：以小人物的忙碌与欢喜，寄托对民生安宁、世道丰足的祝愿——这正是南宋风俗画最动人的地方。'},
+  /* —— 虢国夫人游春图（唐 · 张萱，宋摹本）图鉴 —— */
+  who:{name:'虢国夫人',paint:'guoguo',scene:'游春图',place:'天宝十一年，杨家姐妹随玄宗、贵妃游春。虢国夫人是杨贵妃三姐，以豪奢与美艳著称——"虢国夫人承主恩，平明骑马入宫门"，写尽她的煊赫。',
+    role:'身份 · 杨氏三姐 · 全卷谜题',
+    intro:'九人八骑，谁是主人？画无榜题，千余年来聚讼不休。',
+    bg:'主流观点：右前骑"三花马"、着男装者即是——三花马为皇家御马，非命妇不能乘；又"却嫌脂粉污颜色，淡扫蛾眉朝至尊"，素面朝天的正是她。'},
+  horse:{name:'三花马',paint:'guoguo',scene:'游春图',place:'御马剪鬃为三瓣，谓之"三花"——唐代御马的最高标识。鞍鞯障泥彩绘华丽，与唐三彩马互为印证。',
+    role:'意象 · 皇家御马',
+    intro:'领头骏马鬃分三瓣，鞍鞯绣金，一看便知来头非凡。',
+    bg:'唐墓壁画与三彩陶马中，剪三花的御马屡有所见。一匹马，就是一枚流动的皇室徽章。'},
+  dress:{name:'男装仕女',paint:'guoguo',scene:'游春图',place:'唐代贵族妇女好着男装胡服出行——翻领袍、蹀躞带、乌皮靴，骑射自如。这是开放包容的大唐才有的风姿。',
+    role:'风尚 · 女着男装',
+    intro:'队中仕女着圆领男装、足蹬皮靴，英姿与柔媚并存。',
+    bg:'《大唐新语》载太平公主紫衫玉带、男装歌舞，"王公之家亦竞相仿效"。女着男装，是盛唐独有的潇洒。'},
+  spring:{name:'游春',paint:'guoguo',scene:'游春图',place:'上巳、寒食、清明，长安仕女倾城出城踏青——"三月三日天气新，长安水边多丽人"，杜甫《丽人行》写的正是这番景象。',
+    role:'时节 · 上巳游春',
+    intro:'骑马踏春、笑语相闻。一队的雍容，满城的风光。',
+    bg:'唐宋以降，游春踏青相沿成俗。此画不设背景而春意自现，全凭人物的从容与衣饰的鲜丽，写出大唐春日的底气。'},
+  /* —— 步辇图（唐 · 阎立本）图鉴 —— */
+  taizong:{name:'唐太宗 · 李世民',paint:'bunian',scene:'步辇',place:'画面右端，太宗坐于步辇之上，由九位宫人抬护：六人抬辇、两人执扇、一人撑华盖。他不乘马、不设御座，偏偏以步辇见使者——这正是画眼所在。',
+    role:'身份 · 大唐第二位皇帝 · 贞观之治开创者',
+    intro:'他盘膝坐于步辇之上，神态雍容自若，目光落在左侧三位使臣身上。辇以人抬，从容缓行，帝王的威仪与亲和都在这一"坐"一"抬"之间。',
+    bg:'贞观十五年（641年），吐蕃赞普松赞干布遣大相禄东赞入长安请婚，太宗许嫁文成公主。阎立本以丹青记此盛事，史称"丹青神话"，此画即汉藏和亲的第一见证。'},
+  lidian:{name:'典礼官（引班官）',paint:'bunian',scene:'步辇图',place:'三人队列最前者，着绯色圆领袍、执笏肃立——他是朝会中的赞礼之官，职在导引使者、宣唱行礼，是这一场合里"礼仪秩序"的化身。',
+    role:'身份 · 掌礼仪引导的朝官',
+    intro:'绯袍高耸于队列之首，拱手执笏，腰身微躬——既引吐蕃使臣入见，也向皇帝行礼如仪。',
+    bg:'唐代服色有制：三品以上紫，四品五品绯。满朝绯袍立于蕃使之前，正是大唐礼制与威仪的无声宣示。'},
+  ludongzan:{name:'禄东赞',paint:'bunian',scene:'步辇图',place:'队列居中者，身形略小、衣饰殊异：联珠纹锦袍、腰束革带、足蹬黑靴——他是吐蕃赞普松赞干布的大相（大论），此行的正使。',
+    role:'身份 · 吐蕃大相 · 请婚正使',
+    intro:'他拱手肃立、目不斜视，姿态恭谨。那身联珠纹锦袍带着鲜明的高原与西域风情，在一派唐制衣冠中格外醒目。',
+    bg:'禄东赞以善谋略闻名吐蕃，为松赞干布迎娶文成公主的主要执行者。传说太宗曾许以封赏挽留，他答"远人慕义，何以留为"，不辱使命而归。'},
+  interpreter:{name:'通译官',paint:'bunian',scene:'步辇图',place:'队列最末，着白色圆领袍者——他是随行译语之人。唐蕃言语不通，和亲的每一步，都要先经过他的口舌。',
+    role:'身份 · 使团通译',
+    intro:'白衣执笏，静立队尾。他不抢半分风头，却是这次请婚之行必不可缺的一环。',
+    bg:'唐代鸿胪寺掌四夷朝贡礼仪，设译语人。正是这些无名译者，让"和同为一家"的宏愿得以准确抵达。'},
+  /* —— 挥扇仕女图（唐 · 周昉，宋摹本）图鉴 —— */
+  huifu:{name:'挥扇贵妇',paint:'huishan',scene:'卷首',place:'全卷主位。她斜坐于雕饰华丽的月牙凳上，手执纨扇正欲挥动，身后侍女持长柄宫扇侍立，旁设山水插屏——坐卧行止皆有器物伺候，是中唐贵族妇女夏日生活的第一主角。',
+    role:'身份 · 贵妇（画中地位最高者之一）',
+    intro:'红裙曳地、披帛绕臂，体态丰腴，神情慵懒。坐姿居卷首主位，用具足是精工——月牙凳、插屏、双扇齐开，无一不显示她的身份。',
+    bg:'周昉笔下的贵妇，雍容里带着寂寞。这"一挥扇"的刹那，既是纳凉，也是排遣——宫闱深处的长日，要靠一柄扇、一幅画、一张琴来消磨。'},
+  chishan:{name:'持扇侍女',paint:'huishan',scene:'卷首',place:'立侍女。她双手持长柄宫扇，侍立于贵妇身侧，衣色沉素、不簪华饰——主仆之别，就写在衣饰与站姿里。',
+    role:'身份 · 侍女',
+    intro:'她微微躬身，长柄扇斜倚肩头，随时准备为主人打扇驱暑。',
+    bg:'长柄宫扇初为仪仗之扇，唐时渐成贵妇身边侍女的日常用物。主人挥小扇自遣，侍女执大扇供凉——一柄扇，两个世界。'},
+  pengzhan:{name:'捧盏贵妇',paint:'huishan',scene:'中段',place:'她与抱琴者、展卷者结伴同游，双手捧盏，似在品茗饮酒——三人衣饰华丽、步态从容，是一组典型的"贵妇出行看画"场面。',
+    role:'身份 · 贵妇',
+    intro:'红裙高髻，双手捧盏，眉眼低垂。身边左有抱琴仕女、右有持扇侍女随侍。',
+    bg:'唐人饮茶亦饮酒。一盏在手，是消渴，也是姿态——画中贵妇的每一件"道具"，都是身份与闲适的注脚。'},
+  baoqin:{name:'抱琴仕女',paint:'huishan',scene:'中段',place:'她双手环抱一张琴，与捧盏者、展卷者同行——琴棋书画是贵族妇女的修养，抱琴而行，正是"才女"的直观形象。',
+    role:'身份 · 贵妇',
+    intro:'衣纹简淡，怀抱古琴，步履轻缓。她与身旁捧盏贵妇并肩，身后跟着小侍女。',
+    bg:'唐琴传世极少，而画中之琴清晰可见龙池、凤沼。抱琴仕女的出现，为后世留下了中唐琴制的难得图像。'},
+  zhanjuan:{name:'展卷仕女',paint:'huishan',scene:'中段',place:'她双手展开一幅长卷，正低头观画；小侍女在旁捧卷相助——贵妇看画，也要人伺候着看，这正是身份最生动的注脚。',
+    role:'身份 · 贵妇',
+    intro:'紫衣长裳，双手展卷，凝神细看。小侍女踮脚捧住画卷另一端。',
+    bg:'唐人爱画，更爱在画中看画。卷中展卷，是周昉有意无意的"画中画"——千年之前的人，与我们一样在欣赏一幅画。'},
+  hongshi:{name:'捧卷侍女',paint:'huishan',scene:'中段',place:'个头最小的一位，红衣窄袖，双手捧住画卷一端——年纪尚轻、身份最低，干的却是最细的活。',
+    role:'身份 · 侍女',
+    intro:'她仰面捧卷，专心配合主人的动作，不敢怠慢。',
+    bg:'侍女多由年幼女子充任，主仆年龄差在这幅画里一目了然：高大的主人，稚嫩的侍儿。'},
+  shuangli:{name:'伫立侍女',paint:'huishan',scene:'中段',place:'两位侍女相对伫立，一着红衣、一着花衣，似在低声交谈——她们是贵妇们身后"闲下来的人"，也是全卷最有人情味的一笔。',
+    role:'身份 · 侍女',
+    intro:'衣饰素净、不着帔帛，二人相对，眉眼间有笑意。',
+    bg:'侍女亦是少女。主人各忙各的，她们偷得片刻闲——周昉连这点小心思也没有放过。'},
+  ceyi:{name:'侧倚仕女',paint:'huishan',scene:'卷尾',place:'卷尾处，她侧坐绣墩、斜倚欲寐，一位侍女垂手侍立身后——从卷首的挥扇，到卷尾的打盹，全卷就像贵妇们消夏长日的完整一天。',
+    role:'身份 · 贵妇',
+    intro:'红衣松散，身子斜倚，神情倦怠已极。侍女静立，不敢惊扰。',
+    bg:'慵懒是周昉仕女最动人的表情。不是闲，是"闲得发倦"——这份倦，正是盛唐之后中唐宫廷生活的真实底色。'},
+  duanli:{name:'端立侍女',paint:'huishan',scene:'卷尾',place:'全卷最左端，她垂手端立，安静得像一笔收梢——从右至左十三人，在她这里收住了尾声。',
+    role:'身份 · 侍女',
+    intro:'红衣侍女，静立卷尾，与侧倚的主人一立一倚，相映成趣。',
+    bg:'长卷讲究起承转合。卷首挥扇是"起"，卷尾端立是"合"——连侍女的位置，都是画家构图的一部分。'},
+  fa_guan:{name:'花冠',paint:'huishan',scene:'发髻',place:'卷首挥扇贵妇头上那顶白瓷色的大花冠——以丝绸或纱罗扎制的莲花冠，是中唐贵妇盛装时罩在高髻之外的礼饰。',
+    role:'发式 · 花冠',
+    intro:'冠体硕大如莲瓣层叠，罩于髻上，远观如头顶盛开的一朵白花。',
+    bg:'唐人嫁娶、宴游、礼佛皆戴冠。白居易诗"冠以犀玉"，此冠以轻绡素绢为之，是晚唐奢靡妆饰的先声。'},
+  fa_paojia:{name:'抛家髻',paint:'huishan',scene:'发髻',place:'卷首持扇侍女的高髻：两鬓抱面、髻脚翘起于头顶一侧，即唐末盛行的"抛家髻"。',
+    role:'发式 · 抛家髻',
+    intro:'髻高耸而斜倾，一角翘起如抛掷之状，故名。',
+    bg:'《新唐书·五行志》载"唐末妇人梳发以两鬓抱面，状如椎髻，时谓之抛家髻"。周昉画的是中唐，此髻入画，正是"时世妆"风尚的实录。'},
+  fa_gaoji:{name:'高椎髻',paint:'huishan',scene:'发髻',place:'抱琴仕女头顶高耸的圆髻——椎髻本是古代妇人常髻，唐人推至极高，愈高愈显雍容。',
+    role:'发式 · 高椎髻',
+    intro:'髻如椎立于头顶，饱满圆润，正面看几乎与脸等长。',
+    bg:'唐诗云"高髻云鬟宫样妆"。髻高需以假发（义髻）相衬，杨贵妃所用义髻甚至以金银为饰——一髻之费，可抵中人一家之产。'},
+  fa_shuanghuan:{name:'双鬟髻',paint:'huishan',scene:'发髻',place:'展卷仕女两侧垂下的双鬟——环形发髻分左右垂于耳际，是未嫁少女与年轻贵妇都喜爱的样式。',
+    role:'发式 · 双鬟髻',
+    intro:'头顶一总大髻，两鬟对称垂于鬓边，行步则微微颤动。',
+    bg:'"学梳双鬟试新裙"——双鬟在唐诗里常与少女春情并提。画中展卷人梳此髻，添一分书卷气外的娇俏。'},
+  q_huishan:{name:'挥扇纳凉',paint:'huishan',scene:'第一组',place:'全卷开篇：贵妇坐月牙凳上执纨扇自挥，侍女持长柄扇在侧，山水插屏在旁——三人一物，组成了一个完整的"纳凉现场"。',
+    role:'活动 · 消夏',
+    intro:'主人小扇自遣，侍女大扇供凉，屏风障尘遮日——宫里的夏天，是被伺候着的夏天。',
+    bg:'纨扇以素绢为之，唐人诗"轻罗小扇扑流萤"。长柄扇古称"障扇"，本是卤簿仪仗——在这里，它只是主人的一纳凉工具。'},
+  q_guanhua:{name:'展卷观画',paint:'huishan',scene:'第二组',place:'画卷中段最热闹的一组：展卷者凝神、捧卷侍女踮脚、抱琴者与捧盏者结伴围观——四人流水般站成一片，像一场移动的画展。',
+    role:'活动 · 赏画',
+    intro:'一人展卷、一人捧卷、一人抱琴、一人捧盏——看画、奏乐、品茗，三事并作。',
+    bg:'唐人藏画成风，张萱、周昉本身就是"被收藏"的对象。画中观画，是周昉留给后世的一帧"艺术史现场"。'},
+  q_zhuli:{name:'伫立闲话',paint:'huishan',scene:'第四组',place:'两位侍女相对伫立、低声交谈——在主人看画、抚琴的间隙，她们偷得片刻自己的时光。',
+    role:'活动 · 闲聊',
+    intro:'一红一花，相对而立，眉眼间是掩不住的少女笑意。',
+    bg:'周昉的高明，在于不忽略"边角料"的人。这两个闲话的侍女，让整幅宫闱图有了人间的温度。'},
+  zhuan:{name:'朱红长案',paint:'huishan',scene:'长案',place:'低矮的朱漆长案横陈于两组仕女之间，是全卷的家具主角。唐人席地坐榻、凭案用事，尚无高桌；案髹朱漆，更见富贵。',
+    role:'器物 · 家具',
+    intro:'案面平直、漆色鲜红，坐于榻凳之上凭案使用——宴饮、抚琴、赏玩皆在其上。',
+    bg:'髹漆工艺费工费料，朱漆为尊。朱门酒肉臭的朱，与这案的朱，是同一种身份的颜色。'},
+  weian:{name:'围案消闲',paint:'huishan',scene:'围案',place:'两位贵妇一右一左凭案而坐：右侧执扇倾向案前，似在理弄案上器物；左侧垂鬟相陪；案前小侍女跪坐伺候，背身捧盆。',
+    role:'活动 · 闺阁午后',
+    intro:'围案消闲：弄扇、赏物、侍女跪奉，贵妇的午后在一张案前缓缓流过。',
+    bg:'一案之隔两重身份：坐者为贵，跪者为仆。唐人室内的等级秩序，不在墙上，在坐姿里。'},
+  hongqiao2:{paint:'qingming',name:'虹桥',scene:'汴河',place:'横跨汴河的无柱木拱飞桥，巨木贯架而成，不设桥墩以利漕船通行。两岸街市辐辏、车马喧阗，是全卷最喧腾的一幕，也是北宋东京的城市地标。',
+    role:'建筑 · 木拱桥',
+    intro:'贯木拱结构，全桥无墩；大船收桅即可通过桥洞，人马车船在上下两层争道。',
+    bg:'《东京梦华录》记其"无柱、巨木虚架、宛如飞虹"。虹桥已非实物，但它的结构在今天闽浙木拱廊桥中仍活着——被誉为桥梁史的活化石。'},
+  kechuan:{paint:'qingming',name:'汴河客船',scene:'汴河',place:'汴河是北宋漕运命脉，江南粮帛经此入京，年漕运量高达六七百万石。客船平底宽舱，载百货、载行旅，是东京赖以生存的生命线。',
+    role:'器物 · 漕运之舟',
+    intro:'船工正放倒桅杆、准备穿桥——船头挥臂者向桥上呼喊，是全卷最著名的戏剧性瞬间。',
+    bg:'一船之安危，背后是整套国家物流体系。张择端把一次可能的撞桥事故定格成永恒，让后世看见了漕运时代的紧张与艰辛。'},
+  zhengdian:{paint:'qingming',name:'孙羊正店',scene:'街市',place:'正店为北宋官许酿酒的顶级酒楼，东京全城仅七十二家。门前扎"彩楼欢门"为招幌，楼上宴饮、楼下百货杂陈，是街市最煊赫的去处。',
+    role:'建筑 · 酒楼',
+    intro:'彩楼欢门以竹木扎成楼阁、缀彩帛鲜花——越豪华越招客，是宋代的"霓虹招牌"。',
+    bg:'正店掌官库酿酒，脚店则向正店沽酒零售。《东京梦华录》载七十二正店"彩楼相对、绣旆相招"，一间酒楼，撑起北宋夜经济的半壁江山。'},
+  chenglou:{paint:'qingming',name:'城楼',scene:'城郭',place:'东京内城城门楼，晨昏启闭、稽查文引、征收商税。它是城乡分界线：门外是汴河烟火，门内是百万人口的都城深处。',
+    role:'建筑 · 城门楼',
+    intro:'两重檐、斗拱密布，楼下人畜穿行、拥堵不堪——全卷节奏最慢的段落。',
+    bg:'城楼上空无士卒，被后世解读为"繁华之下防务空虚"的隐喻。靖康之变的伏笔，藏在城楼。'},
+};
+const codexPanel=$('codexPanel');
+$('codexBtn').addEventListener('click',()=>codexPanel.classList.toggle('open'));
+$('codexClose').addEventListener('click',()=>codexPanel.classList.remove('open'));
+function renderCodex(){
+  const list=$('codexList');list.innerHTML='';
+  Object.entries(CODEX).filter(([,c])=>c.paint===curPaint.id).forEach(([id,c])=>{
+    const u=getUnlock()[id];
+    const d=document.createElement('div');
+    d.className='codex-card'+(u?'':' locked');
+    d.innerHTML=u
+      ?`<h4>${c.name}<small>${c.scene}</small></h4><div class="role">${c.role}</div>
+        <p class="place"><em>「${c.scene}」</em>${c.place}</p>
+        <p>${c.intro}</p><p style="color:#7a7160;">${c.bg}</p>`
+      :`<h4>？？？<small>${c.scene}</small></h4>
+        <div class="lock-tip">完成「${c.scene}」场景小剧场后解锁</div>`;
+    list.appendChild(d);});
+  /* 同步热点标记完成态 */
+  document.querySelectorAll('.hotspot').forEach(h=>{
+    const done=!!getUnlock()[h.dataset.cid||h.dataset.hid];
+    h.classList.toggle('done',done);
+    const p=curPaint&&curPaint.hotspots.find(x=>x.id===h.dataset.hid);
+    if(p)h.querySelector('span').textContent=p.label+(done?' ✓':'');});}
+
+/* ================================================================
+   08 小剧场引擎 + 六段剧本
+   引擎：say(说话人,文本) / choose([{label,...}]) 返回 Promise，
+        新增剧本只需在 THEATERS 中追加 async 函数。
+   ================================================================ */
+const tBg=$('theaterBg'),tTitle=$('theaterTitle'),dlgNext=$('dlgNext');
+let theaterCancel=false;                       // 暂离剧场 = 中止当前剧本
+function say(speaker,text){return new Promise(res=>{
+  if(theaterCancel)return res();
+  $('dlgSpeaker').textContent=speaker;
+  $('dlgText').textContent=text;
+  $('choiceBox').innerHTML='';dlgNext.style.display='inline-flex';
+  dlgNext.onclick=()=>res();});}
+function choose(options){return new Promise(res=>{
+  if(theaterCancel)return res(null);
+  dlgNext.style.display='none';$('choiceBox').innerHTML='';
+  options.forEach(o=>{
+    const b=document.createElement('button');b.className='choice-btn';
+    b.textContent=o.label;
+    b.onclick=()=>{if(theaterCancel)return res(null);res(o.value!==undefined?o.value:o.label);};
+    $('choiceBox').appendChild(b);});});}
+function endTheater(id,sceneLabel){
+  const first=unlock(id);
+  renderCodex();
+  if(first)toast(`图鉴已解锁 · ${CODEX[id].name}`);
+  else toast('此场景图鉴已收录');
+  closeTheater();}
+
+/* 剧场背景：取当前长卷原图模糊铺底 + 氛围类名（雨/夜等） */
+function setTheaterBg(moodClass){
+  if(curPaint)tBg.style.backgroundImage=`url("${curPaint.thumb[0]}")`;
+  tBg.className=moodClass||'';}
+
+const THEATERS={
+
+
+
+
+
+  /* —— 簪花仕女图 · 四段问答小剧场 —— */
+  async lady(){
+    setTheaterBg('');
+    await say('旁白','庭园空阔，辛夷开得正盛。一位仕女提着纱衫领子，鬓边一朵大花随步轻颤。');
+    await say('簪花仕女','"客人从何处来？且站近些——我这枝花，可是今晨新摘的。"');
+    const c=await choose([
+      {label:'🔹 请问仕女头上簪的大花？',value:'flower'},
+      {label:'🔹 身上披的轻纱唤作什么？',value:'bo'},
+      {label:'🔹 髻前颤动生辉的首饰叫什么？',value:'buyao'}]);
+    if(c==='flower'){await say('簪花仕女','"簪花呀。牡丹、芍药、荷花、绣球——花时不同，簪的花也不同。唐人以鲜花入鬓，是时世妆里最大胆的一笔。"');}
+    else if(c==='bo'){await say('簪花仕女','"这叫帔子，后世也叫披帛。长长的纱罗绕臂垂身，行步飘飘——原是受西域风气影响，如今已是贵妇常服的一部分。"');}
+    else{await say('簪花仕女','"步摇。金枝缀玉，一步一摇，故名。额前这花钿步摇，是唯有命妇才戴得的。"');}
+    await say('旁白','你记下这满鬓芳华。仕女转身又去扑蝶了——丽影深处，是说不尽的盛世闲愁。');
+    endTheater('lady','簪花仕女图');},
+
+  async flower(){
+    setTheaterBg('');
+    await say('旁白','湖石嶙峋，一树紫花开得正盛，苞尖如笔，满树锦绣。');
+    const c=await choose([
+      {label:'🔹 请问这树开的是什么花？',value:'what'},
+      {label:'🔹 养这种花要有身份地位吗？',value:'who'},
+      {label:'🔹 仕女簪花最爱用它吗？',value:'zan'}]);
+    if(c==='what'){await say('旁白','这是辛夷，又叫木笔、紫玉兰——花苞尖长如笔头，先花后叶，一开便满树锦绣。韩愈诗云“辛夷花房忽全开”，写的就是它。');}
+    else if(c==='who'){await say('旁白','不必。辛夷是中唐庭院的寻常观赏树，士庶人家皆可栽植，并非富贵者专利。它入画，只为点明春时、衬托闲情。');}
+    else{await say('旁白','并不。唐人簪花最爱牡丹、芍药、荷花，应时而簪；辛夷花大色艳，多种于庭院观赏。画中仕女头上那朵，才是簪花；这一树繁花，是庭园的春景本身。'); }
+    await say('旁白','一树花，一群人，一园春色。你把它记进了图鉴。');
+    endTheater('xinyi','辛夷花');},
+
+  async hand(){
+    setTheaterBg('');
+    await say('旁白','近前看这位仕女：手拈一枝春花，薄纱绕臂，长裙曳地，裙摆花纹层叠如云。');
+    const c=await choose([
+      {label:'🔹 她手上拿的是什么？',value:'hand'},
+      {label:'🔹 披在身上的薄纱是什么？',value:'bo'},
+      {label:'🔹 裙子上的纹样代表什么？',value:'wen'}]);
+    if(c==='hand'){await say('旁白','折枝花。盛唐贵妇好以折枝鲜花清供、簪戴，一枝在手，既是玩赏，也是簪花的“候选”。');}
+    else if(c==='bo'){await say('旁白','这叫帔子，后也称披帛。长条纱罗绕臂垂身，行步飘飘——受西域风气影响而来，到唐代已成贵妇常服的“灵魂配件”。');}
+    else{await say('旁白','裙上团花，即宝相花纹样：将莲花、牡丹等花朵团窠化，取“圆满、富贵”之意。唐代织染绣工艺登峰造极，一条裙子便是流动的锦绣江山。');}
+    await say('拈花仕女','"客人问得这样细——这满身的行头，哪一件不是时世妆里的讲究？"');
+    endTheater('shinv','拈花仕女');},
+
+  async maid(){
+    setTheaterBg('');
+    await say('旁白','六位女子立于庭中，衣香鬓影，几乎一般华丽。只有一人静立持扇，不言不语。');
+    const c=await choose([
+      {label:'🔹 头簪大花、衣锦曳裙者',value:'a'},
+      {label:'🔹 执长柄团扇、素衣侍立者',value:'b'},
+      {label:'🔹 举手戏蝶、神采飞扬者',value:'c'}]);
+    if(c==='b'){await say('旁白','正是。她不簪花、不着艳色，一柄团扇侍立身旁——唐代贵族居处皆有侍女随侍，衣饰素净便是身份的注脚。');}
+    else{await say('旁白','非也。再看——那位执长柄团扇、素衣侍立者才是侍女；簪花曳裙的，皆是主家贵妇。');}
+    await say('侍女','（轻声）"娘子们赏花乏了，我便扇风送凉。客人的眼真尖。"');
+    endTheater('maid','簪花仕女图');},
+
+  async crane(){
+    setTheaterBg('');
+    await say('旁白','一只白鹤踱过庭前，长颈微昂，正与仕女们互相打量。');
+    const c=await choose([
+      {label:'🔹 祥瑞仙禽，象征长寿高洁',value:'a'},
+      {label:'🔹 贵族苑囿蓄养的宠物',value:'b'},
+      {label:'🔹 二者皆是，另有深意',value:'c'}]);
+    await say('旁白','答得好。鹤在唐是祥瑞，贵族园林多蓄仙鹤；周昉以鹤入画，既取其仙姿映衬仕女丰韵，又以鹤之孤高，反照出她们逗犬扑蝶也驱不散的寂寞。');
+    await say('白鹤','（引颈长唳）');
+    endTheater('crane','簪花仕女图');},
+
+  async dog(){
+    setTheaterBg('');
+    await say('旁白','一只黑白小狗摇头摆尾，追着仕女裙角打转。');
+    const c=await choose([
+      {label:'🔹 中华田园犬',value:'a'},
+      {label:'🔹 西域进贡的拂菻猧儿',value:'b'}]);
+    if(c==='b'){await say('旁白','正是“猧儿”。唐初自拂菻——极西的大秦方向——进贡的小型犬，深为宫中贵妇宠爱。以红丝拂犬、以香球戏之，是李义山诗里写过的贵妇日常。');}
+    else{await say('旁白','再猜猜——它名叫“猧儿”，是唐初自西域拂菻进贡的宠物犬，贵妇们以红丝拂犬为乐。');}
+    endTheater('dog','簪花仕女图');},
+
+  /* —— 韩熙载夜宴图 · 四段夜宴小剧场（卷从右起：听乐→观舞→暂歇→散宴） —— */
+  async pipa(){
+    setTheaterBg('');
+    await say('旁白','夜宴方开。烛光里满座屏息——女子怀抱琵琶，轮指拨弦，四座皆醉。');
+    await say('状元郎粲','（倾身向前，忘情忘我）"好曲子……再来一遍！"');
+    const c=await choose([
+      {label:'🔹 问她：教坊是何处？',value:'a'},
+      {label:'🔹 问她：所弹何曲？',value:'b'}]);
+    if(c==='a'){await say('琵琶伎','"教坊么——宫中掌乐舞百戏的地方。我兄长李嘉明忝任教坊副使，我常随他出入宴集。"');}
+    else{await say('琵琶伎','"《霓裳》的引子罢了。今夜主人兴致高，少不得要多弹几支。"');}
+    await say('旁白','一曲终了，掌声四起。你记住了：弹琵琶的，是教坊副使李嘉明之妹——这夜宴里的每一张面孔，都有来历。');
+    endTheater('lijia','听乐');},
+
+  async guwu(){
+    setTheaterBg('');
+    await say('旁白','羯鼓声起，急节繁弦。舞伎王屋山旋身而舞，满座击掌合板；主人韩熙载挽袖击鼓，身姿矫健，脸上却没有笑意。');
+    const c=await choose([
+      {label:'🔹 王屋山所跳何舞？',value:'wu'},
+      {label:'🔹 韩熙载所击何鼓？',value:'gu'}]);
+    if(c==='wu'){await say('宾客','"六幺！绿腰六幺——此舞长于大髻、姿容婉媚，要连转六幺之拍，最难，也最是好看。"');}
+    else{await say('宾客','"羯鼓。出自西域的两面小鼓，横置牙床之上，声促而亮。韩相公击得一手好羯鼓——只是不知为何，越击越沉郁。"');}
+    await say('旁白','鼓声急，舞步疾，角落里的德明和尚却背过身去，合掌低首，与这满堂欢愉格格不入。');
+    endTheater('wuwushan','观舞');},
+
+  async hanx(){
+    setTheaterBg('');
+    await say('旁白','宴至中场，韩熙载退入卧房净手小憩。红烛高照，屏风半掩，他的眉宇在烛光里显得格外沉郁。');
+    const c=await choose([
+      {label:'🔹 他为何夜夜宴乐？',value:'why'},
+      {label:'🔹 他为何面带忧色？',value:'sad'}]);
+    await say('韩熙载','"北方士子，飘零至此……官家遣人目识心记，我又岂能不知？声色犬马，不过自污以避相位之祸罢了。"');
+    await say('旁白','据《宣和画谱》所载，后主李煜疑韩熙载有异志，遂遣顾闳中夜探韩府。这场夜宴，是欢场，更是他精心演出的保护色。');
+    endTheater('hanxizai','暂歇');},
+
+  async guzhong(){
+    setTheaterBg('');
+    await say('旁白','宴阑人散。韩熙载执鼓槌立于屏前，挥手作别，仍有客与歌妓依依调笑。而你——今夜真正的看客，藏在画外。');
+    await say('顾闳中','"目识心记，归来图绘以上……我画的不是夜宴，是人心。官家要的，也正是人心。"');
+    await say('旁白','画家顾闳中奉李煜密旨潜入韩府，凭记忆绘成此卷。一幅工笔重彩，竟是一场跨越千年的“政治画像”。');
+    endTheater('guzhong','散宴');},
+  /* —— 韩熙载夜宴图 · 清吹：认识五代乐器 —— */
+  async qingchui(){
+    setTheaterBg('');
+    await say('旁白','宴至夜深，舞歇歌阑。五位女子横坐一排，执管吹奏，烛影摇红里，满座敛声静听。');
+    const c=await choose([
+      {label:'🔹 横执而吹、声清越者，是何器？',value:'di'},
+      {label:'🔹 竖执、音色低回幽咽者？',value:'xiao'},
+      {label:'🔹 状如喇叭、来自西域者？',value:'bili'}]);
+    if(c==='di'){await say('乐伎','"横吹为笛。竹制七孔，横于唇边，声音最是高亢清亮，领奏就靠它。"');}
+    else if(c==='xiao'){await say('乐伎','"竖吹为箫。也是竹制，山口吹孔在上，声音低回——你听，像不像有人在夜里叹气？"');}
+    else{await say('乐伎','"觱篥（筚篥），本名觱篥，龟兹传来的胡乐，音色凄紧，最能动人——‘无限塞鸿飞不度，秋风卷入小单于’，说的就是它。"');}
+    await say('旁白','还有拍板击节、檀板轻敲——五器合鸣，清而不闹。唐宋之间的夜宴之乐，原来是这样清雅。');
+    endTheater('qingchui','清吹');},
+
+
+
+
+  /* —— 货郎图 · 四段小场景 —— */
+  async huolang(){
+    setTheaterBg('');
+    await say('旁白','柳荫下的乡道上，货郎歇了担子，摇起拨浪鼓。闻声而来的村童把你挤到了担子前。');
+    await say('货郎','"客官面生——莫不是要问：我这是在哪里做买卖？"');
+    const c=await choose([
+      {label:'🔹 走乡串村，货担就是流动的店铺',value:'a'},
+      {label:'🔹 在城里开有固定铺子',value:'b'}]);
+    await say('旁白','正是。货郎不入城、不设摊，挑担下乡，把百货送到村头巷尾——哪里有拨浪鼓声，哪里就有了集市。这是南宋商品经济渗入乡村最生动的写照。');
+    endTheater('huolang','货郎');},
+
+  async goods(){
+    setTheaterBg('');
+    await say('旁白','你看那货担：上层针线脂粉、日用杂货，下层风车轮转、小鼓喧然。');
+    const c=await choose([
+      {label:'🔹 担上最招人眼的，是孩子们的玩具',value:'a'},
+      {label:'🔹 担上全是贵重的金银器皿',value:'b'}]);
+    if(c==='a'){await say('旁白','没错。风车寓「转运」，鱼形物件寓「有余」——小小货物里藏着百姓的吉祥期盼。这数百件小物，是南宋手工业的百科全书。');}
+    else{await say('旁白','非也。担上是针头线脑与孩童玩具——风车、小鼓、面具、陀螺，件件贴心。这些"象征性的货物"，装的是一整个乡村的童年。');}
+    endTheater('goods','百货物担');},
+
+  async children(){
+    setTheaterBg('');
+    await say('旁白','一群村童围着担子又蹦又跳，妇人抱着襁褓赶来，连老人也拄杖凑趣。');
+    await say('货郎','"莫挤莫挤——人人都有！风车给谁？给那个最小的小郎君！"');
+    await say('旁白','孩子们的眼睛亮得像星星。货郎卖的不只是货物，更是乡村单调生活里的一场节日。');
+    endTheater('children','村童妇孺');},
+
+  async why(){
+    setTheaterBg('');
+    await say('旁白','你站在乡路尽头回望：一担百货、一群孩童、一路柳荫。忽然明白了画家落笔时的心思——');
+    const c=await choose([
+      {label:'🔹 记录风俗，寄愿民生安宁',value:'a'},
+      {label:'🔹 为货郎铺子做"广告"',value:'b'}]);
+    await say('旁白','李嵩是画院待诏，笔下却是贩夫走卒。他不画宫苑高阁，偏画这担上百货、人间烟火——百姓忙碌而欢喜的日常，便是世道丰足最好的证明。');
+    endTheater('why','乡路');},
+  /* —— 虢国夫人游春图 · 四段小场景 —— */
+  async who(){
+    setTheaterBg('');
+    await say('旁白','九人八骑，衣香鬓影，浩浩荡荡。你拦住一位骑浅黄骏马的贵人——眉目如画，不施脂粉，一身圆领男装。');
+    const c=await choose([
+      {label:'🔹 主角是谁？这位男装骑者就是夫人吗？',value:'a'},
+      {label:'🔹 她身旁白衣、黑衣的两位"男子"又是谁？',value:'b'}]);
+    if(c==='a'){
+      await say('旁白','正是全卷主角——虢国夫人：杨贵妃的三姐，以美艳与豪奢冠绝当时。"却嫌脂粉污颜色，淡扫蛾眉朝至尊"——素面朝天便敢见驾的，正是她。画无榜题，这是千余年最合理的答案。');
+      await say('旁白','她与随从的区别在无声处：骑的是鬃分三瓣的三花御马，衣色鲜丽、神态从容——御马与雍容，就是身份最好的宣言。');
+    }
+    else{
+      await say('旁白','画中没有真正的男子——那两位也是女眷：着男装、骑马相随的杨氏眷属与随从。天宝十一年，杨家姐妹随驾游春，女着男装恰是盛唐贵族的流行风尚。');
+    }
+    await say('旁白','一队雍容，满城风光。你记住了：主角是夫人——杨家三姐，虢国夫人。');
+    endTheater('who','虢国夫人');},
+
+  async horse(){
+    setTheaterBg('');
+    await say('旁白','那匹领头的浅黄骏马，鬃毛齐整地剪成三瓣，鞍鞯上金彩灿然。');
+    const c=await choose([
+      {label:'🔹 鬃分三瓣，唤作"三花马"',value:'a'},
+      {label:'🔹 只是马夫剪着玩的',value:'b'}]);
+    await say('旁白','"三花"是御马的最高标识，非皇家不能乘用。唐三彩里那些剪三花的骏马，原来个个来头不小——一匹坐骑，就是一枚流动的徽章。');
+    endTheater('horse','鞍马');},
+
+  async dress(){
+    setTheaterBg('');
+    await say('旁白','细看队伍：仕女们翻领袍、蹀躞带、乌皮靴，骑在马上干脆利落。');
+    const c=await choose([
+      {label:'🔹 为何着男装？那是胡服骑射的风尚',value:'a'},
+      {label:'🔹 为何着男装？因为出门匆忙穿错了',value:'b'}]);
+    await say('旁白','太平公主紫衫玉带、着男装歌舞在先，"王公之家亦竞相仿效"在后——女着男装是盛唐开放气象最生动的注脚。与夫人相比，随从衣色深沉、鞍马寻常：服饰的每一分差别，都是身份的无声宣言。');
+    endTheater('dress','男装仕女');},
+
+  async spring(){
+    setTheaterBg('');
+    await say('旁白','三月三日，倾城出游。马蹄轻软，笑语一路，空气中都是杏花的甜香。');
+    await say('旁白','"三月三日天气新，长安水边多丽人"——杜甫写杨氏游春的《丽人行》，与这幅游春图互为注脚。上巳、寒食、清明，唐人把春天过成了节日，也过成了诗。');
+    endTheater('spring','游春');},
+  /* —— 步辇图 · 四段问答小剧场 —— */
+  async taizong(){
+    setTheaterBg('');
+    await say('旁白','九位宫人抬辇而行，华盖斜张，长扇轻摇。辇上之人玄色幞头、赭黄常服，目光越过众人，落在使臣身上。');
+    const c=await choose([
+      {label:'🔹 请问：坐在步辇上的是谁？',value:'who'},
+      {label:'🔹 这"步辇"是什么形制？有何讲究？',value:'form'},
+      {label:'🔹 他乘步辇来做什么？',value:'why'}]);
+    if(c==='who'){await say('旁白','这是唐太宗李世民。大唐第二位皇帝，开贞观之治——突厥人尊他为"天可汗"。此刻他不设御座、不乘马，偏偏坐在一架由宫人抬行的步辇上接见蕃使。');}
+    else if(c==='form'){await say('旁白','辇者，无轮之车也——以人代马，抬而前行。上古以辇载王，秦汉以后辇为帝王后妃专乘；至唐，以宫婢抬辇，谓之"步辇"。皇帝坐步辇出行，不疾不徐，威仪中透着从容：见的是使臣，亮的是恩威。');}
+    else{await say('旁白','贞观十五年（641年），吐蕃赞普松赞干布遣使请婚。太宗今日乘辇临见，正是应允这门亲事——来年，文成公主将携典籍、工匠、谷种西入高原，唐蕃自此"和同为一家"。');}
+    await say('旁白','辇声辘辘（以人代辘），你记住了这架步辇的分量：抬着的是皇帝，连着的却是汉藏两族数百年的往来。');
+    endTheater('taizong','步辇');},
+
+  async lidian(){
+    setTheaterBg('');
+    await say('旁白','三人队列之首，一位绯袍官员执笏而立，腰身微躬，正引导身后的使臣上前。');
+    const c=await choose([
+      {label:'🔹 请问他是谁？',value:'a'},
+      {label:'🔹 他为何着红袍？',value:'b'}]);
+    if(c==='a'){await say('旁白','他是典礼官——朝会中的引班赞礼之官。导引使者入见、宣唱行礼次序，皆是他的职掌。吐蕃使臣欲面圣，须先过他这一关。');}
+    else{await say('旁白','唐制：三品以上服紫，四品五品服绯。绯袍立于蕃使之前，既是引路人，也是一面活的仪制招牌——大唐的礼数与品秩，都穿在身上。');}
+    await say('典礼官','（低声）"蕃使止步——先执笏，再躬身。天颜咫尺，礼数不可失。"');
+    endTheater('lidian','绯袍典礼官');},
+
+  async ludongzan(){
+    setTheaterBg('');
+    await say('旁白','队列居中者身形略小，衣饰却最惹眼：联珠纹锦袍、束革带、蹬黑靴，拱手肃立于红毯之前。');
+    const c=await choose([
+      {label:'🔹 请问他是谁？',value:'a'},
+      {label:'🔹 他为何穿得与唐人不同？',value:'b'}]);
+    if(c==='a'){await say('旁白','他是禄东赞——吐蕃赞普松赞干布的大相（大论），此次请婚之行的正使。传说他机敏善对，太宗曾想封官挽留，他答："远人慕义，何以留为？"不辱使命而归。');}
+    else{await say('旁白','那身联珠纹锦袍带着高原与西域的风：联珠纹是萨珊波斯经丝路传来的纹样，在吐蕃贵胄间极受推崇。他以故国衣冠入唐都，恭敬里仍守着使者的体面。');}
+    await say('禄东赞','（拱手，以唐礼长揖）"吐蕃使者禄东赞，奉赞普之命，请尚公主——"');
+    endTheater('ludongzan','禄东赞');},
+
+  async interpreter(){
+    setTheaterBg('');
+    await say('旁白','队尾立着一位白袍官员，不言不动，只在禄东赞开口时微微侧耳。');
+    const c=await choose([
+      {label:'🔹 他是谁？为何穿白衣？',value:'a'},
+      {label:'🔹 没有他，此行会怎样？',value:'b'}]);
+    if(c==='a'){await say('旁白','他是通译官——唐蕃言语不通，朝对之间全靠译语转达。白袍为庶人及低级官吏常服：品秩不高，担子却重。');}
+    else{await say('旁白','唐蕃语言天差地别。若没有这些无名译者，赞普的诚意、太宗的允准，都只是一串听不懂的声音。和亲的每一步，都先经过他的口舌。');}
+    await say('通译官','（踏前半步，躬身）"鸿胪寺译语人，候旨传译。"');
+    endTheater('interpreter','白衣通译');},
+  /* —— 挥扇仕女图 · 二十一段问答小剧场 —— */
+  async huifu(){
+    setTheaterBg('');
+    await say('旁白','卷首第一位：她斜坐月牙凳上，纨扇半举，正要挥落。身后的侍女持长柄扇侍立，旁边还立着一屏山水画。');
+    const c=await choose([
+      {label:'🔹 她是谁？怎么看出来的？',value:'who'},
+      {label:'🔹 她身边都是谁？',value:'mate'},
+      {label:'🔹 为什么全卷叫「挥扇仕女图」？',value:'name'}]);
+    if(c==='who'){await say('旁白','她是画中地位最高的贵妇。看三处：其一，她坐着——满卷侍女皆立，唯贵妇能坐；其二，她的月牙凳雕饰最华丽；其三，衣饰丰美、体量居主位。坐姿、坐具、衣饰，就是她的身份证。');}
+    else if(c==='mate'){await say('旁白','身后那位是持长柄扇的侍女，专门为她打扇；身旁的山水插屏既是摆设，也替她障尘遮日。一人、一侍、一屏，构成一个完整的纳凉单元。');}
+    else{await say('旁白','因她得名。全卷仕女十余人，持扇者也不止一位，但唯有她居于卷首主位、正挥纨扇——画家便取这一最有代表性的瞬间为全卷命名。也有一种说法：此卷本名《倦绣图》，挥扇二字，点的是宫闱消夏的大题目。');}
+    await say('挥扇贵妇','（扇将落未落）这天儿，可真闷啊——');
+    endTheater('huifu','卷首');},
+
+  async chishan(){
+    setTheaterBg('');
+    await say('旁白','贵妇身侧，侍女双手持一柄长扇，微微躬身，一动不动地站着。');
+    const c=await choose([
+      {label:'🔹 她是侍女，怎么看出来的？',value:'a'},
+      {label:'🔹 她手里的扇子有什么讲究？',value:'b'}]);
+    if(c==='a'){await say('旁白','看三点：她站着伺候人；衣色沉素、没有帔帛华饰；最要紧的是——她手里拿的是伺候人的扇子，不是自己纳凉的扇子。');
+      await say('旁白','她的高髻两角翘起，正是唐末流行的抛家髻。侍女也梳时兴发式——宫里的风尚，从上到下一起追。');}
+    else{await say('旁白','这叫长柄宫扇，古称障扇，本是帝王仪仗中障风蔽日之物。到了唐代，它成了贵妇身边侍女的标配：主人挥小扇自遣，侍女执大扇供凉。一柄扇，隔着两重身份。');}
+    await say('持扇侍女','（纹丝不动）主子摇一下，我才动一下……');
+    endTheater('chishan','卷首');},
+
+  async pengzhan(){
+    setTheaterBg('');
+    await say('旁白','画卷中段，四位女子结伴而行。最右这位红裙高髻，双手捧着一盏，低头看路。');
+    const c=await choose([
+      {label:'🔹 她是谁？身边的又是谁？',value:'a'},
+      {label:'🔹 她捧的是什么？',value:'b'}]);
+    if(c==='a'){await say('旁白','她是结伴赏玩的贵妇——衣饰华丽、步态从容、身后跟着人。她左边是抱琴的仕女，身前还有个踮脚捧卷的小侍女。看画、抱琴、捧盏，贵妇的消夏，从来是三件事并作一件事。');}
+    else{await say('旁白','一盏而已——或茶或酒。唐人饮茶亦饮酒，一盏在手，一半为解渴，一半为姿态。你可留意：她捧盏、旁人抱琴展卷，器物全是道具，衬的是人的闲适。');}
+    endTheater('pengzhan','中段');},
+
+  async baoqin(){
+    setTheaterBg('');
+    await say('旁白','她双手环抱着一张琴，走得缓慢而小心，像抱着什么稀世珍宝。');
+    const c=await choose([
+      {label:'🔹 她抱的是什么琴？',value:'a'},
+      {label:'🔹 贵妇为什么要抱琴？',value:'b'}]);
+    if(c==='a'){await say('旁白','一张古琴——面板圆拱、底有龙池凤沼，是中唐琴制的标准样子。唐琴传世极少，这张画里的琴，成了后人研究唐琴的图像证据。');}
+    else{await say('旁白','琴棋书画，是贵族妇女的修养，也是排遣。宫里的日子太长，一张琴、一幅画、一盏茶，就是把长日切成段的办法。');}
+    await say('抱琴仕女','（低声）仔细着些，这琴比我还娇贵。');
+    endTheater('baoqin','中段');},
+
+  async zhanjuan(){
+    setTheaterBg('');
+    await say('旁白','她双手展开一幅长卷，低头细细地看；旁边的小侍女踮着脚，替她捧住画卷另一端。');
+    const c=await choose([
+      {label:'🔹 她在做什么？',value:'a'},
+      {label:'🔹 为什么看画还要人帮着捧？',value:'b'}]);
+    if(c==='a'){await say('旁白','赏画。唐人爱画成风，名家真迹一展一收都讲究。长卷要一段段看、一个人捧、一个人展——看画这件事，本身就是一种讲究排场的娱乐。');}
+    else{await say('旁白','这便是身份的注脚。贵妇看画，手不沾卷——展卷、捧卷、收卷，皆有人伺候。你再看：捧着画卷另一端的小侍女，是这卷里最年幼、身份最低的一位。');}
+    endTheater('zhanjuan','中段');},
+
+  async hongshi(){
+    setTheaterBg('');
+    await say('旁白','画卷中段有个小不点——个头只到主人肩膀，红衣窄袖，双手捧住画卷一端，仰着脸不敢松手。');
+    await say('旁白','她是捧卷侍女。满卷人物里她年纪最小、个头最矮、身份最低——但最要紧的活，恰恰是这个小小不点在干：画卷那头，须得稳。');
+    await say('旁白','主仆之间的年龄差、个头差，被周昉画得清清楚楚——宫里使唤的，正是这样半大的女孩子。');
+    endTheater('hongshi','中段');},
+
+
+  async shuangli(){
+    setTheaterBg('');
+    await say('旁白','两组贵人之间，有两位侍女相对伫立——一着红衣、一着花衣，正凑在一起低声说话。');
+    await say('旁白','她们是侍女：衣饰素净、不着帔帛。主人看画抚琴的间隙，她们偷得片刻自己的时光——眉眼间那点笑意，是全卷最有人情味的一笔。');
+    await say('旁白','周昉的高明，正在于不忽略边角处的人。深宫里不光有贵妇的寂寞，也有少女的悄悄话。');
+    endTheater('shuangli','中段');},
+
+  async ceyi(){
+    setTheaterBg('');
+    await say('旁白','画卷最左端，一位贵妇侧坐在绣墩上，身子斜斜倚着，眼睛都快睁不开了。');
+    const c=await choose([
+      {label:'🔹 她怎么了？',value:'a'},
+      {label:'🔹 卷首挥扇，卷尾打盹，是巧合吗？',value:'b'}]);
+    if(c==='a'){await say('旁白','她倦了。从卷首的挥扇纳凉，到卷尾的斜倚欲眠，周昉画完了贵妇们消夏的一整天——扇也挥不动了，只剩一身慵懒。');}
+    else{await say('旁白','不是巧合，是匠心。长卷自右向左展开，从起（挥扇）到合（倦倚），像一出缓慢落幕的戏。此卷又名《倦绣图》——无论挥扇还是倚绣，画的都是深宫里长长的、无处排遣的闲。');}
+    await say('侧倚仕女','（呢喃）扇子……收了吧。');
+    endTheater('ceyi','卷尾');},
+
+  async duanli(){
+    setTheaterBg('');
+    await say('旁白','全卷最左端，还有一位红衣侍女，垂手端立，安静得像一笔收梢。');
+    await say('旁白','她是端立侍女。长卷讲究起承转合：卷首挥扇是起，卷尾这一立一倚便是合。连侍女站的位置，都是画家构图的一部分。');
+    await say('端立侍女','（垂手静候）主子睡了，我才算歇了。');
+    endTheater('duanli','卷尾');},
+
+  async fa_guan(){
+    setTheaterBg('');
+    await say('旁白','请看卷首贵妇头上——那顶硕大如莲的白冠。');
+    const c=await choose([
+      {label:'🔹 这是什么冠？',value:'a'},
+      {label:'🔹 戴它有什么讲究？',value:'b'}]);
+    if(c==='a'){await say('旁白','花冠，以丝绸纱罗扎成莲花状，罩在高髻之外。中唐贵妇盛装时戴冠，宴游、礼佛、见客皆是如此。');}
+    else{await say('旁白','冠比髻大，远观如头顶盛开一朵白花——奢华处恰在以素为华。白居易诗说冠以犀玉，这类罗绢花冠则轻盈夸张，是晚唐浓妆盛饰的先声。');}
+    endTheater('fa_guan','发髻');},
+
+  async fa_paojia(){
+    setTheaterBg('');
+    await say('旁白','请看持扇侍女的高髻——两鬓抱面，髻脚翘起于头顶一侧。');
+    await say('旁白','这叫抛家髻。《新唐书》有载：唐末妇人梳发以两鬓抱面，状如椎髻，时人谓之抛家髻。髻高耸而斜倾，如掷如抛，故名。');
+    await say('旁白','有趣的是：侍女也梳最时兴的发式——宫中风尚，自上而下，人人追赶。');
+    endTheater('fa_paojia','发髻');},
+
+  async fa_gaoji(){
+    setTheaterBg('');
+    await say('旁白','请看抱琴仕女的头顶——一枚又圆又高的发髻，正面看几乎与脸等长。');
+    await say('旁白','这是高椎髻。椎髻本是古来常式，唐人将它推到极致：愈高愈贵。高髻需衬以假发义髻，杨贵妃的义髻甚至以金银为饰——一髻之费，可抵中人一家之产。');
+    endTheater('fa_gaoji','发髻');},
+
+  async fa_shuanghuan(){
+    setTheaterBg('');
+    await say('旁白','请看展卷仕女两侧——头顶总一大髻，左右各垂一环，对称地悬在耳际。');
+    await say('旁白','这是双鬟髻。唐诗说学梳双鬟试新裙——双鬟常与少女春情并提。她梳此髻展卷看画，书卷气里便添了几分娇俏。行步之间，两鬟微颤，最是动人。');
+    endTheater('fa_shuanghuan','发髻');},
+
+
+  async q_huishan(){
+    setTheaterBg('');
+    await say('旁白','第一组：贵妇坐于月牙凳上挥纨扇，侍女持长柄扇侍立，旁设山水插屏。');
+    await say('旁白','这是一场伺候着的纳凉：主人小扇自遣，侍女大扇供凉，屏风障尘遮日——宫里的夏天，连风都是被人扇出来的。');
+    endTheater('q_huishan','第一组');},
+
+  async q_guanhua(){
+    setTheaterBg('');
+    await say('旁白','第二组：展卷者凝神、捧卷侍女踮脚、抱琴者与捧盏者结伴同行——四人连成一片，像一场缓缓移动的画展。');
+    await say('旁白','看画、奏乐、品茗，唐人消夏的三件事，在这里并作了一件。而画中看画，是周昉留给千年后我们的一个巧妙回旋。');
+    endTheater('q_guanhua','第二组');},
+
+
+  async q_zhuli(){
+    setTheaterBg('');
+    await say('旁白','第四组：两位侍女相对伫立，红衣与花衣，正说着只有她们自己听得见的悄悄话。');
+    await say('旁白','主人各忙各的，她们偷得片刻清闲。周昉连这点小心思也没有放过——深宫图的边角处，藏着全卷最鲜活的人气。');
+    endTheater('q_zhuli','第四组');},
+
+  async zhuan(){
+    setTheaterBg('');
+    await say('旁白','先看这张醒目的红桌——它是一张朱漆长案。');
+    await say('旁白','唐人居室以床榻、案几为中心，还没有今天的高桌高椅。案面低矮平直，人坐于榻上或凳上，凭案使用。髹朱漆是富贵人家的器物标识——朱漆费工费料，朱门朱漆，自古便是身份的代名词。这张大案，就是这间屋子里最贵重的家具。');
+    endTheater('zhuan','朱红长案');},
+
+  async weian(){
+    setTheaterBg('');
+    await say('旁白','再看围案的人：两位贵妇一右一左凭案而坐，右侧的执扇倾向案前，似在理弄赏玩案上器物；左侧的垂鬟闲坐相陪；案前还跪坐着一个小侍女，背身伺候。');
+    await say('旁白','这便是贵妇们的午后：围案消闲，弄扇赏物，侍女跪奉——一案之隔，坐着的与跪着的，把这屋里的等级摆得明明白白。');
+    endTheater('weian','围案消闲');},
+
+
+
+  /* —— 清明上河图（张择端本）· 四景 —— */
+  async hongqiao2(){
+    setTheaterBg('');
+    await say('旁白','一座巨大的木拱桥横跨汴河，像一道飞虹落在水面上——桥上人车争道，桥下大船正收起桅杆，惊险万分。');
+    const c=await choose([
+      {label:'🔹 这座桥为什么叫"虹桥"？',value:'a'},
+      {label:'🔹 它为什么不用桥墩？',value:'b'}]);
+    if(c==='a'){await say('旁白','因"其桥无柱，皆以巨木虚架，饰以丹雘，宛如飞虹"，故人称虹桥。它是全卷的高潮：两岸百业汇聚于此，一行一业都能在桥上桥下找到。');}
+    else{await say('旁白','虹桥采用"贯木拱"结构——巨木纵横相贯、互相支撑，全桥无一根桥墩。好处显而易见：汴河漕运日夜不停，桥墩会挡船；无墩飞桥，大船收桅即可通过。这是中国桥梁史上的绝妙一笔。');}
+    await say('旁白','《东京梦华录》记汴河"虹桥上人物阗咽"，张择端把这"阗咽"二字，画成了一千年后仍让我们屏息的一幕。');
+    endTheater('hongqiao2','虹桥');},
+
+  async kechuan(){
+    setTheaterBg('');
+    await say('旁白','虹桥脚下，一艘大客船正顺流而下——船工们手忙脚乱：有人撑篙，有人扳桅，船头的人挥臂大呼，向桥上的人喊话。');
+    const c=await choose([
+      {label:'🔹 这是一艘什么船？',value:'a'},
+      {label:'🔹 船上的人在忙什么？',value:'b'}]);
+    if(c==='a'){await say('旁白','这是一艘汴河客船（也叫漕船）：平底宽舱，可载百石之货、数十之客。汴河是北宋的"物流大动脉"，江南粮帛经此入京，年漕运量高达六七百万石——你眼前的这一艘，就是那六百万石里的一分子。');}
+    else{await say('旁白','前方桥洞低矮，他们正在放倒桅杆！放倒桅杆需要全船配合：一人号子、众人合力，稍慢半步，桅杆就会撞上桥身。船头挥臂者正朝桥上呼喊——或许是请桥上的人让路，或许是报告险情。');}
+    await say('旁白','这一幕是全卷最著名的"戏剧性瞬间"：画家把一次可能的撞桥事故，定格成了永恒的紧张。');
+    endTheater('kechuan','汴河客船');},
+
+  async zhengdian(){
+    setTheaterBg('');
+    await say('旁白','街市正中，一座酒楼拔地而起——门口扎着层层叠叠的"彩楼欢门"，楼上宾客凭栏，店前车水马龙。');
+    const c=await choose([
+      {label:'🔹 这家店是什么来头？',value:'a'},
+      {label:'🔹 门口的彩楼欢门是什么？',value:'b'}]);
+    if(c==='a'){await say('旁白','这是"孙羊正店"——正店是北宋官许酿酒的顶级酒楼，东京全城不过七十二家。《东京梦华录》说正店"彩楼相对，绣旆相招"，门前这个大牌，就是它的金字招牌。');}
+    else{await say('旁白','彩楼欢门是宋代酒楼的"广告牌"：竹木扎成楼阁之形、缀以彩帛鲜花，越豪华越招客。正店用它宣示身份，脚店、小铺也争相效仿——北宋街市的繁华，有一半是这些彩楼争出来的。');}
+    await say('旁白','楼下赶车的、担货的、说书的络绎不绝——一间正店，就是北宋商业繁荣的缩影。');
+    endTheater('zhengdian','孙羊正店');},
+
+  async chenglou(){
+    setTheaterBg('');
+    await say('旁白','画卷后段，一座高大的城楼巍然耸立——两重檐、斗拱密布，楼下门洞中人畜穿行，进出不断。');
+    const c=await choose([
+      {label:'🔹 这座城楼是做什么的？',value:'a'},
+      {label:'🔹 画中进城的人多吗？',value:'b'}]);
+    if(c==='a'){await say('旁白','这是东京内城的城门楼：晨昏启闭、士卒把守，兼具稽查文引、征收商税之责。它是城乡的分界线——城外是汴河漕运与市井烟火，城内是百万人口的都城深处。');}
+    else{await say('旁白','多，而且杂：赶车的、挑担的、骑驴的、坐轿的，还有骆驼驮队。张择端特意让城楼下的"拥堵"成为全卷节奏最慢的段落——进了这道门，就从"旅途"进入了"生活"。');}
+    await say('旁白','城楼上无一兵一卒露面——有学者说，这正是张择端留给时代的隐喻：繁华之下，防务空虚。靖康之变的伏笔，就藏在这座空荡荡的城楼。');
+    endTheater('chenglou','城楼');},
+};
+function startTheater(hid,label){
+  if(!curPaint.theater){toast('该画卷剧情开发中');return;}
+  if(!THEATERS[hid]){toast('该场景剧情开发中');return;}
+  theaterCancel=false;
+  tTitle.textContent=`《${curPaint.title}》 · ${label}`;
+  openTheater();
+  THEATERS[hid]();                                  // async 剧本自行推进
+}
+$('theaterExit').addEventListener('click',()=>{theaterCancel=true;closeTheater();
+  toast('已暂离剧场，可随时再入');});
+
+
+/* ================================================================
+   09 仕女妆扮小游戏（试运营 · 重头戏）
+   目的：让浏览者通过亲手"簪花"，了解唐代簪花种类与簪戴方式。
+   结构：DRESS 数据表 + 换装渲染 + 完成评语，可扩展新花种/新簪位。
+   ================================================================ */
+const DRESS = {
+  /* 簪花种类：五种花各有小知识与专属 SVG 花形 */
+  flowers: {
+    mudan:  {name:'牡丹', know:'花中之王，唐时最尊贵的簪花，象征富贵荣华——武后冬月游后苑，曾命百花连夜齐放，唯牡丹不从，遂贬洛阳。',
+      svg:'<g><g fill="#d0607a"><ellipse cx="0" cy="-11" rx="5.5" ry="11"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(60)"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(120)"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(180)"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(240)"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(300)"/></g><g fill="#e89aab" transform="scale(.62)"><ellipse cx="0" cy="-11" rx="5.5" ry="11"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(72)"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(144)"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(216)"/><ellipse cx="0" cy="-11" rx="5.5" ry="11" transform="rotate(288)"/></g><circle r="3.6" fill="#c9a24d"/></g>'},
+    shaoyao:{name:'芍药', know:'又名"将离"。古人离别相赠芍药以表情意，所谓"伊其相谑，赠之以勺药"——春末花开，正是饯春之时。',
+      svg:'<g><g fill="#d77f93"><ellipse cx="0" cy="-11" rx="6" ry="11"/><ellipse cx="0" cy="-11" rx="6" ry="11" transform="rotate(72)"/><ellipse cx="0" cy="-11" rx="6" ry="11" transform="rotate(144)"/><ellipse cx="0" cy="-11" rx="6" ry="11" transform="rotate(216)"/><ellipse cx="0" cy="-11" rx="6" ry="11" transform="rotate(288)"/></g><g fill="#eeb6c2" transform="scale(.55)"><ellipse cx="0" cy="-11" rx="6" ry="11"/><ellipse cx="0" cy="-11" rx="6" ry="11" transform="rotate(90)"/><ellipse cx="0" cy="-11" rx="6" ry="11" transform="rotate(180)"/><ellipse cx="0" cy="-11" rx="6" ry="11" transform="rotate(270)"/></g><circle r="3.2" fill="#c9a24d"/></g>'},
+    hehua:  {name:'荷花', know:'出淤泥而不染。夏日簪荷，取其清逸脱俗——唐人宫词有"荷叶罗裙一色裁，芙蓉向脸两边开"之句。',
+      svg:'<g><g fill="#e6b8c4"><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z"/><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z" transform="rotate(45)"/><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z" transform="rotate(90)"/><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z" transform="rotate(135)"/><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z" transform="rotate(180)"/><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z" transform="rotate(225)"/><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z" transform="rotate(270)"/><path d="M0,-17 C4.5,-10 4.5,-4 0,0 C-4.5,-4 -4.5,-10 0,-17 Z" transform="rotate(315)"/></g><circle r="3.4" fill="#c9a24d"/></g>'},
+    xiuqiu: {name:'绣球', know:'团簇成球，象征团圆美满。花小而繁，簪之别有趣致，宋人亦极爱之。',
+      svg:'<g><g fill="#8f9fc4"><circle cx="0" cy="-8" r="4"/><circle cx="7.6" cy="-2.5" r="4"/><circle cx="4.7" cy="6.5" r="4"/><circle cx="-4.7" cy="6.5" r="4"/><circle cx="-7.6" cy="-2.5" r="4"/><circle cx="0" cy="0" r="4.4"/></g><circle r="2.6" fill="#e6ecdd"/></g>'},
+    meihua: {name:'梅花', know:'凌寒独开，五瓣象征五福。簪梅者取其傲骨与高洁——"疏影横斜水清浅，暗香浮动月黄昏"。',
+      svg:'<g><g fill="#f2ead8"><circle cx="0" cy="-8" r="4.8"/><circle cx="7.6" cy="-2.5" r="4.8"/><circle cx="4.7" cy="6.5" r="4.8"/><circle cx="-4.7" cy="6.5" r="4.8"/><circle cx="-7.6" cy="-2.5" r="4.8"/></g><g fill="#c9a24d"><circle cx="0" cy="0" r="1.6"/><circle cx="0" cy="-8" r="1.1"/><circle cx="7.6" cy="-2.5" r="1.1"/><circle cx="4.7" cy="6.5" r="1.1"/><circle cx="-4.7" cy="6.5" r="1.1"/><circle cx="-7.6" cy="-2.5" r="1.1"/></g></g>'},
+  },
+  /* 簪戴位置：三式簪法 */
+  places: {
+    top:  {name:'髻顶正簪', pos:'translate(180,44) scale(1)', know:'高髻顶端正簪一朵，是盛唐命妇最庄重的簪法——《簪花仕女图》中满鬓芳华，正是此意。'},
+    side: {name:'鬓边斜簪', pos:'translate(226,110) scale(.9)', know:'斜插鬓边，行步轻颤，是日常闲居的时世妆——"云鬓花颜金步摇"，颤动的正是这一朵。'},
+    duo:  {name:'对花双簪', pos:null, know:'两鬓各簪一朵，谓之"双鬟对花"，娇俏之态，多为年轻仕女所爱。'},
+  },
+  /* 帔子颜色 */
+  pizi: {
+    '#b04a3e':'朱红帔子——正色之艳，是大唐最耀眼的气象。',
+    '#e9e2cf':'月白帔子——素净雅致，反衬得花容愈发艳丽。',
+    '#c9a2a2':'藕色帔子——温柔含蓄，中晚唐渐趋柔婉的审美。',
+    '#5f6d84':'黛蓝帔子——沉静端丽，别是一番书卷风韵。',
+  },
+  /* 裙上纹样（对应 SVG pattern） */
+  pats: {
+    'pat-tuan':  {name:'团花纹', know:'宝相团花，取"圆满富贵"之意，是唐裙最经典的纹样。'},
+    'pat-yunhe': {name:'云鹤纹', know:'云间仙鹤，祥瑞长寿——与画中白鹤遥相呼应。'},
+    'pat-chan':  {name:'缠枝纹', know:'藤蔓连绵，生生不息，织染绣中极常见。'},
+    'pat-zhe':   {name:'折枝纹', know:'一枝独秀，如清供入画，素雅可喜。'},
+  },
+};
+
+const duState = { flower:'mudan', place:'top', pi:'#b04a3e', pat:'pat-tuan' };
+
+function duFlowerSVG(type){ return DRESS.flowers[type].svg; }
+function renderFlower(){
+  const g = document.getElementById('duFlower');
+  const wrap = t => '<g transform="' + t + '">' + duFlowerSVG(duState.flower) + '</g>';
+  g.innerHTML = duState.place === 'duo'
+    ? wrap('translate(136,116) scale(.66)') + wrap('translate(224,116) scale(.66)')
+    : wrap(DRESS.places[duState.place].pos);
+}
+function renderDress(){
+  renderFlower();
+  document.getElementById('piL').setAttribute('fill', duState.pi);
+  document.getElementById('piR').setAttribute('fill', duState.pi);
+  document.getElementById('duSkirt').setAttribute('fill', 'url(#' + duState.pat + ')');
+}
+/* 生成四组选项按钮 */
+function buildDressOpts(){
+  const mk = (boxId, obj, key, onPick) => {
+    const box = document.getElementById(boxId); box.innerHTML = '';
+    Object.entries(obj).forEach(([k, v]) => {
+      const b = document.createElement('button');
+      b.className = 'du-opt'; b.textContent = v.name;
+      if (k === duState[key]) b.classList.add('on');
+      b.onclick = () => {
+        duState[key] = k;
+        box.querySelectorAll('.du-opt').forEach(x => x.classList.remove('on'));
+        b.classList.add('on'); onPick(v);
+      };
+      box.appendChild(b);
+    });
+  };
+  mk('duFlowers', DRESS.flowers, 'flower', v => { renderFlower(); duNote(v.know); });
+  mk('duPlaces', DRESS.places, 'place', v => { renderFlower(); duNote(v.know); });
+  const pzBox = document.getElementById('duPizi'); pzBox.innerHTML = '';
+  Object.entries(DRESS.pizi).forEach(([c, know]) => {
+    const b = document.createElement('button');
+    b.className = 'du-opt' + (duState.pi === c ? ' on' : '');
+    b.textContent = { '#b04a3e':'朱红', '#e9e2cf':'月白', '#c9a2a2':'藕色', '#5f6d84':'黛蓝' }[c];
+    b.onclick = () => {
+      duState.pi = c;
+      pzBox.querySelectorAll('.du-opt').forEach(x => x.classList.remove('on'));
+      b.classList.add('on'); renderDress(); duNote(know);
+    };
+    pzBox.appendChild(b);
+  });
+  mk('duPats', DRESS.pats, 'pat', v => { renderDress(); duNote(v.know); });
+}
+function duNote(text){ document.getElementById('duNote').textContent = text; }
+
+/* 完成妆扮：按花种给评语，本地记录完成状态 */
+document.getElementById('duFinish').addEventListener('click', () => {
+  const verdicts = {
+    mudan:'一朵牡丹簪于高髻，富贵逼人——这正是最标准的大唐时世妆。',
+    shaoyao:'芍药簪鬓，春将归去——别有一分惜别的柔肠。',
+    hehua:'荷花生尘，清逸出俗——炎夏里的一缕凉意。',
+    xiuqiu:'绣球团簇，团圆美满——人见人爱的小圆满。',
+    meihua:'寒梅点额，傲骨凌霜——高洁之志，尽在鬓边。',
+  };
+  duNote('【妆成】' + verdicts[duState.flower] + ' 帔子裙纹各得其所，一位活色生香的唐代仕女，便在笔下立住了。');
+  try { localStorage.setItem('ghj_dress_done', '1'); } catch(e){}
+  document.getElementById('dressBtn').textContent = '仕女妆扮 ✓';
+  toast('妆扮完成 · 新知已收录');
+});
+
+/* 开关：仅簪花仕女图全景页显示入口 */
+document.getElementById('dressBtn').addEventListener('click', () => {
+  buildDressOpts(); renderDress();
+  if (localStorage.getItem('ghj_dress_done')) duNote('又来为她妆扮了——换一朵花，便换一番风情。');
+  document.getElementById('dressup').classList.add('open');
+});
+document.getElementById('duClose').addEventListener('click', () =>
+  document.getElementById('dressup').classList.remove('open'));
+/* 启动时恢复完成标记 */
+if (localStorage.getItem('ghj_dress_done'))
+  document.getElementById('dressBtn').textContent = '仕女妆扮 ✓';
+
+/* ================================================================
+   10 逛夜市小游戏（清明上河图专属 · 地图→预览→店内三段式）
+   ================================================================ */
+const NM = { money:0 };
+const NM_SHOPS = {
+  bing:{name:'曹婆婆肉饼',npc:'曹婆婆',img:'nm_cao.jpg',
+    desc:'曹婆婆肉饼是《东京梦华录》里排得上号的名点。土灶柴火烧得正旺，饼皮烤得金黄酥脆，肉馅汁水饱满。',
+    greet:'这位客官，夜色深了，肚子可还空着？老身这儿的肉饼刚出炉，香得很哩！您要来个肉饼（20文），还是尝尝旋煎羊白肠（30文）？',
+    items:[
+      {key:'肉饼',price:20,know:'曹婆婆肉饼是《东京梦华录》记载的汴京名点。宋代市井以姓氏名食者甚多，如"曹婆婆肉饼""郑家油饼"，皆一时之选。老身这肉饼，面皮擀得薄如纸，肉馅调得鲜又香，土灶柴火一烤，十里八街都闻得到！'},
+      {key:'旋煎羊白肠',price:30,know:'旋煎羊白肠：取羊肠灌羊血，小段剖切，热油急煎。州桥夜市"直至三更尽，才五更又复开张"，这口膻香是汴京寒夜的慰藉。客官您尝尝，外焦里嫩，配上一壶热酒，神仙也不换！'}
+    ]},
+  cha:{name:'王婆茶肆',npc:'王婆',img:'nm_wang.jpg',
+    desc:'王婆茶肆是州桥一带出了名的清雅去处。竹帘半卷，茶香袅袅，点茶、煎茶各有讲究。',
+    greet:'哟，这位客官里面请。夜里风凉，饮一盏热茶最是舒坦。您是要来一盏点茶（50文）瞧瞧宋人的风雅，还是来一盏煎茶（30文）品品唐时的遗韵？',
+    items:[
+      {key:'点茶',price:50,know:'点茶是宋人四事之首。茶饼先炙、再碾、再罗筛，水沸如鱼目微声时熁盏，然后环注击拂——盏面雪沫如山水云纹，谓之「动而云生」。客官您看，这茶面上的沫饽，像不像一幅山水小景？'},
+      {key:'煎茶',price:30,know:'煎茶是唐法遗风：直接将茶末入釜煎煮。到了北宋，点茶渐成主流，但煎茶仍在民间茶肆保留，价廉而味浓。这煎茶虽不如点茶雅致，却是老茶客的心头好，味厚、提神、耐喝！'}
+    ]},
+  guo:{name:'李记果子铺',npc:'李掌柜',img:'nm_li.jpg',
+    desc:'李记果子铺里，蜜饯、糖果、糕点琳琅满目。糖渍青梅、冰雪冷元子，是汴京人消夏解馋的头等好物。',
+    greet:'客官来啦！咱这铺子里果子新鲜，蜜饯甜糯。您是要一盘香糖果子（40文）回去佐茶，还是来一碗冰雪冷元子（15文）解解暑气？',
+    items:[
+      {key:'香糖果子',price:40,know:'香糖果子是蜜饯类总称，以蔗糖、蜂蜜渍青梅、荔枝、木瓜。《东京梦华录》载其名目数十，是汴京茶肆酒楼的雅食。客官您尝尝，这青梅渍得酸甜适口，配上一盏清茶，最是解腻。'},
+      {key:'冰雪冷元子',price:15,know:'冰雪冷元子是宋代冷饮：将元子（糯米小团）浸于冰水或蜜水中，暑夜售卖，是汴京夜市的"网红甜品"！别看便宜，汴京城的公子哥儿、小姐丫鬟都抢着买，一碗下肚，暑气全消！'}
+    ]},
+  jiu:{name:'孙家正店',npc:'孙掌柜',img:'nm_sun.jpg',
+    desc:'孙家正店是官库授牌的七十二户正店之一，自酿美酒，香飘半条街。脚店皆来此沽酒，再零售给市井。',
+    greet:'哈哈，贵客光临！咱孙家正店的美酒，那可是官库正统，绝非脚店沽来的二道货。您是要一壶上等美酒（200文）与友人共饮，还是来一壶羊羔酒（80文）独酌消愁？',
+    items:[
+      {key:'美酒一壶',price:200,know:'北宋"正店"七十二户，掌官库酿酒；"脚店"不得自酿，须向正店沽酒零售。一壶美酒二百文，已是普通人一日的工钱。客官您这壶酒，够脚店卖上两三天了！'},
+      {key:'羊羔酒',price:80,know:'羊羔酒以羊肉与糯米同酿，味极甘滑，是北方名酒。在汴京正店沽得，价不及官库美酒之半。这酒入口绵柔，回味带一丝乳香，是咱店里的招牌，老主顾来了必点！'}
+    ]},
+  chou:{name:'赵记绸缎庄',npc:'赵娘子',img:'nm_zhao.jpg',
+    desc:'赵记绸缎庄专售上等绢、罗、绫、缎。一匹绢值千文，一匹罗值数千文，非寻常人家穿得起的奢侈之物。',
+    greet:'这位娘子（或官人），里边请。咱这庄里绢罗绫缎样样齐全，花色都是江南时兴的。您是要一匹绢（2000文）裁件春衫，还是选一匹罗（3500文）做条襦裙？',
+    items:[
+      {key:'绢一匹',price:2000,know:'北宋绢价约每匹一千五百至两千文。一匹绢的价钱，差不多是一个低级士卒半个月的俸禄。这绢质地细密，染工上乘，穿在身上又轻又软，汴京的贵妇人们最爱用它做衫子。'},
+      {key:'罗一匹',price:3500,know:'罗是高级丝织品，轻薄透气、花纹繁复。一匹罗值三五千文，非寻常人家穿得起的——这就是宋代的"奢侈品"！您看这花纹，是蜀中匠人费时数月织就的，走动起来如水波流转。'}
+    ]},
+  wan:{name:'周家玩具摊',npc:'周小哥',img:'nm_zhou.jpg',
+    desc:'周家玩具摊是州桥夜市上最热闹的一隅。风车、泥叫叫、小鼓、竹蜻蜓，孩子们围着不走，大人们也忍不住驻足。',
+    greet:'客官来啦！咱这摊上风车会转、泥叫叫会响，小孩儿见了走不动道，大人见了也想起童年。您是要个风车（10文）还是泥叫叫（8文）？',
+    items:[
+      {key:'风车',price:10,know:'货郎担上常见风车、泥叫叫、小鼓等孩童玩具。风车寓「转运」，鱼形物件寓「有余」——小小货物里藏着百姓的吉祥期盼。客官您看这风车，竹骨纸面，风一吹呼啦啦转，拿在手里，好运就跟着来了！'},
+      {key:'泥叫叫',price:8,know:'泥叫叫是宋代泥塑玩具，中空有声，孩童吹之作响。一只泥叫叫只要八文钱，是汴京夜市上最平易近人的快乐！别看便宜，汴京城里哪个孩子兜里不揣着一两个？一吹"嘟嘟"响，整条街都听得见！'}
+    ]}
+};
+
+let nmCurShop = null;
+
+function openNightMarket(){
+  $('nightMarket').classList.add('open');
+  $('nmExchange').style.display='flex';
+  $('nmMapView').style.display='none';
+  $('nmPreview').style.display='none';
+  $('nmPreview').classList.remove('open');
+  $('nmShop').style.display='none';
+  $('nmEnterBtn').style.display='none';
+  $('nmExchangeResult').innerHTML='';
+  $('nmToast').classList.remove('show');
+}
+
+document.querySelectorAll('.nm-back').forEach(b=>b.addEventListener('click',()=>{
+  if($('nmShop').style.display==='flex'){
+    $('nmShop').style.display='none';
+    $('nmMapView').style.display='flex';
+    nmCurShop=null;
+  }else{
+    $('nightMarket').classList.remove('open');
+  }
+}));
+$('nightBtn').addEventListener('click',openNightMarket);
+
+$('nmExchangeBtn').addEventListener('click',()=>{
+  const salary=parseInt($('nmSalary').value)||0;
+  const wen=Math.round(salary*2);
+  const guan=(wen/1000).toFixed(1);
+  NM.money=wen;
+  $('nmExchangeResult').innerHTML=
+    `<p>系统将 <strong>${salary.toLocaleString()}</strong> 元折算为 <strong>${wen.toLocaleString()}</strong> 文（约 ${guan} 贯）</p>
+     <p style="color:#a09580;font-size:12.5px;margin-top:6px;">概念：北宋汴京熟练工匠日薪约 150 文，一石米约 600 文。您揣着的钱，够买 ${Math.floor(wen/600)} 石米，约合 ${(Math.floor(wen/600)*60).toLocaleString()} 公斤。</p>`;
+  $('nmEnterBtn').style.display='inline-block';
+});
+
+$('nmEnterBtn').addEventListener('click',()=>{
+  $('nmExchange').style.display='none';
+  $('nmMapView').style.display='flex';
+  updateNmWallet();
+  nmToast('州桥夜市灯火通明，直至三更。点击灯笼标记，步入店铺。');
+});
+
+function updateNmWallet(){
+  $('nmMoney').textContent=NM.money.toLocaleString();
+  $('nmMoney2').textContent=NM.money.toLocaleString();
+}
+function nmToast(msg){
+  const el=$('nmToast');el.textContent=msg;el.classList.add('show');
+  clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),4000);
+}
+
+/* 地图点击 → 预览 */
+document.querySelectorAll('.nm-map-point').forEach(pt=>{
+  pt.addEventListener('click',()=>{
+    const sid=pt.dataset.shop;
+    const s=NM_SHOPS[sid];
+    if(!s)return;
+    nmCurShop=sid;
+    $('nmPreviewImg').style.backgroundImage=`url(${s.img})`;
+    $('nmPreviewName').textContent=s.name;
+    $('nmPreviewDesc').textContent=s.desc;
+    $('nmPreview').style.display='flex';
+    $('nmPreview').classList.add('open');
+  });
+});
+
+$('nmPreviewBack').addEventListener('click',()=>{
+  $('nmPreview').style.display='none';
+  $('nmPreview').classList.remove('open');
+  nmCurShop=null;
+});
+
+$('nmPreviewEnter').addEventListener('click',()=>{
+  if(!nmCurShop)return;
+  $('nmPreview').style.display='none';
+  $('nmPreview').classList.remove('open');
+  enterShop(nmCurShop);
+});
+
+/* 进入店铺 */
+function enterShop(sid){
+  const s=NM_SHOPS[sid];
+  $('nmMapView').style.display='none';
+  $('nmShop').style.display='flex';
+  $('nmShopName').textContent=s.name;
+  $('nmNpcImg').src=s.img;
+  $('nmNpcName').textContent=s.npc;
+  updateNmWallet();
+  showDialogue(s.npc, s.greet);
+  renderShopChoices(sid);
+}
+
+function showDialogue(npc, text){
+  $('nmDialogueText').innerHTML=`<strong style="color:#e6c88a;">${npc}：</strong>${text}`;
+}
+
+function renderShopChoices(sid){
+  const s=NM_SHOPS[sid];
+  const box=$('nmChoices');
+  box.innerHTML='';
+  s.items.forEach(it=>{
+    const btn=document.createElement('button');
+    btn.textContent=`买 ${it.key}（${it.price}文）`;
+    btn.addEventListener('click',()=>buyItem(sid,it));
+    box.appendChild(btn);
+  });
+  const exitBtn=document.createElement('button');
+  exitBtn.textContent='不买，先四处看看';
+  exitBtn.style.color='#a09580';
+  exitBtn.addEventListener('click',()=>{
+    $('nmShop').style.display='none';
+    $('nmMapView').style.display='flex';
+    nmCurShop=null;
+  });
+  box.appendChild(exitBtn);
+  $('nmBuyResult').innerHTML='';
+}
+
+function buyItem(sid, it){
+  if(NM.money>=it.price){
+    NM.money-=it.price;
+    updateNmWallet();
+    showDialogue(NM_SHOPS[sid].npc, it.know);
+    nmToast(`您刚刚消费了 ${it.price} 文，余额 ${NM.money.toLocaleString()} 文。`);
+    $('nmBuyResult').innerHTML=`<p style="color:#e6c88a;">已购入「${it.key}」，${NM_SHOPS[sid].npc}又絮絮叨叨说了许多……</p>`;
+  }else{
+    showDialogue(NM_SHOPS[sid].npc, `客官，这${it.key}要${it.price}文，您手里只有${NM.money}文了……在咱大宋，钱袋见底就得回家歇着，明儿再来吧！`);
+    nmToast(`余额不足！您只有 ${NM.money.toLocaleString()} 文，还差 ${it.price-NM.money} 文。`);
+  }
+}
+
+$('nmShopBack').addEventListener('click',()=>{
+  $('nmShop').style.display='none';
+  $('nmMapView').style.display='flex';
+  nmCurShop=null;
+});
+
+/* 启动时恢复完成标记 */
+if (localStorage.getItem('ghj_dress_done'))
+  document.getElementById('dressBtn').textContent = '仕女妆扮 ✓';
+
+/* 启动 */
+showPage('home');
+</script>
+</body>
+</html>
